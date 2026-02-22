@@ -1,25 +1,43 @@
 #include <raylib.h>
+#if defined(PLATFORM_WEB)
+    #include <emscripten/emscripten.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#ifndef PLATFORM_WEB
 #define COMMAND_SERVER_IMPLEMENTATION
 #include "command_server.h"
+#endif
+
 #include "game_types.h"
 #include "assets.h"
 #include "night.h"
 #include "day.h"
 
-static Game game;
+#ifndef PLATFORM_WEB
 static Command frame_cmd;
+static bool running = true;
+#endif
+static Game game;
 
 bool ManagedIsKeyPressed(int key) {
+#ifdef PLATFORM_WEB
+    return IsKeyPressed(key);
+#else
     return IsKeyPressed(key) || (frame_cmd.type == CMD_KEY_PRESS && frame_cmd.key_code == key);
+#endif
 }
 
 bool ManagedIsMouseButtonPressed(int button) {
+#ifdef PLATFORM_WEB
+    return IsMouseButtonPressed(button);
+#else
     return IsMouseButtonPressed(button) || (frame_cmd.type == CMD_MOUSE_PRESS && frame_cmd.mouse_button == button);
+#endif
 }
 
 static void state_update(float dt) {
@@ -121,100 +139,113 @@ static void state_render(void) {
     }
 }
 
+void update(void) {
+    #ifndef PLATFORM_WEB
+    // Poll TCP command
+    frame_cmd = command_server_poll();
+
+    // Handle TCP commands
+    switch (frame_cmd.type) {
+        case CMD_SCREENSHOT:
+            TakeScreenshot(frame_cmd.filename);
+            command_server_respond(true, "OK");
+            break;
+
+        case CMD_MOVE_MOUSE:
+            SetMousePosition(frame_cmd.pos.x, frame_cmd.pos.y);
+            command_server_respond(true, "OK");
+            break;
+
+        case CMD_KEY_PRESS:
+            command_server_respond(true, "OK");
+            break;
+
+        case CMD_MOUSE_PRESS:
+            command_server_respond(true, "OK");
+            break;
+
+        case CMD_QUIT:
+            command_server_respond(true, "OK");
+            running = false;
+            break;
+
+        case CMD_NONE:
+            break;
+    }
+    #endif
+
+    float dt = GetFrameTime();
+
+    // Track previous state for transition detection
+    GameState prev_state = game.state;
+
+    // Update current state
+    state_update(dt);
+
+    // Detect state transitions
+    if (prev_state != game.state) {
+        // Exit handlers for old state
+        switch (prev_state) {
+            case STATE_NIGHT:
+                night_exit(&game);
+                break;
+            case STATE_DAY:
+                day_exit(&game);
+                break;
+            default:
+                break;
+        }
+
+        // Enter handlers for new state
+        switch (game.state) {
+            case STATE_LOGO:
+                game.state_timer = 0;
+                break;
+            case STATE_NIGHT:
+                night_enter(&game);
+                break;
+            case STATE_DAY:
+                day_enter(&game);
+                break;
+            case STATE_OVER:
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Render
+    BeginDrawing();
+    ClearBackground(BLACK);
+    state_render();
+    DrawFPS(5, 5);
+    EndDrawing();
+}
+
 int main(void) {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Save Soul of Zlaya Babka");
     srand((unsigned int)time(NULL));
-    SetTargetFPS(60);
     InitAudioDevice();
+#ifndef PLATFORM_WEB
     command_server_init(CMD_PORT);
+#endif
 
     assets_load(&game.assets);
     game_reset(&game);
 
-    bool running = true;
+#ifdef PLATFORM_WEB
+    emscripten_set_main_loop(update, 0, 1);
+#else
+    SetTargetFPS(60);
     while (running && !WindowShouldClose()) {
-        // Poll TCP command
-        frame_cmd = command_server_poll();
-
-        // Handle TCP commands
-        switch (frame_cmd.type) {
-            case CMD_SCREENSHOT:
-                TakeScreenshot(frame_cmd.filename);
-                command_server_respond(true, "OK");
-                break;
-
-            case CMD_MOVE_MOUSE:
-                SetMousePosition(frame_cmd.pos.x, frame_cmd.pos.y);
-                command_server_respond(true, "OK");
-                break;
-
-            case CMD_KEY_PRESS:
-                command_server_respond(true, "OK");
-                break;
-
-            case CMD_MOUSE_PRESS:
-                command_server_respond(true, "OK");
-                break;
-
-            case CMD_QUIT:
-                command_server_respond(true, "OK");
-                running = false;
-                break;
-
-            case CMD_NONE:
-                break;
-        }
-
-        float dt = GetFrameTime();
-
-        // Track previous state for transition detection
-        GameState prev_state = game.state;
-
-        // Update current state
-        state_update(dt);
-
-        // Detect state transitions
-        if (prev_state != game.state) {
-            // Exit handlers for old state
-            switch (prev_state) {
-                case STATE_NIGHT:
-                    night_exit(&game);
-                    break;
-                case STATE_DAY:
-                    day_exit(&game);
-                    break;
-                default:
-                    break;
-            }
-
-            // Enter handlers for new state
-            switch (game.state) {
-                case STATE_LOGO:
-                    game.state_timer = 0;
-                    break;
-                case STATE_NIGHT:
-                    night_enter(&game);
-                    break;
-                case STATE_DAY:
-                    day_enter(&game);
-                    break;
-                case STATE_OVER:
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        // Render
-        BeginDrawing();
-        ClearBackground(BLACK);
-        state_render();
-        DrawFPS(5, 5);
-        EndDrawing();
+        update();
     }
+#endif
 
-    assets_unload(&game.assets);
+#ifndef PLATFORM_WEB
     command_server_cleanup();
+#endif
+    assets_unload(&game.assets);
     CloseAudioDevice();
     CloseWindow();
     return 0;
