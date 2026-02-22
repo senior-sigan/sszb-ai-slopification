@@ -150,6 +150,7 @@ void game_reset(Game *g) {
     g->cur_col = 2;
     g->spawn_timer = 0;
     g->selfie_active = false;
+    g->selfie_pending = false;
     g->selfie_alpha = 0;
     g->selfie_time = 0;
     g->club_anim_time = 0;

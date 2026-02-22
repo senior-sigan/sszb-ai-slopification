@@ -1,0 +1,6 @@
+[submodule "game/raylib"]
+	path = game/raylib
+	url = https://github.com/raysan5/raylib.git
+[submodule "game/vendor/raylib"]
+	path = game/vendor/raylib
+	url = https://github.com/raysan5/raylib.git

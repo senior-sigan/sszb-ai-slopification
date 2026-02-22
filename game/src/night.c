@@ -86,6 +86,7 @@ void night_enter(Game *g) {
     g->level_time = 0;
     g->spawn_timer = 0;
     g->selfie_active = false;
+    g->selfie_pending = false;
     g->selfie_alpha = 0;
     g->selfie_time = 0;
     g->club_anim_time = 0;
@@ -300,17 +301,18 @@ void night_update(Game *g, float dt) {
                 }
                 cr->cooldown_timer = difficulty_hooligan_cooldown(g->level);
             } else {
-                // Whore: selfie effect
+                // Whore: selfie effect (with 0.5s delay before flash)
                 PlaySound(g->assets.snd_selfie);
                 if (g->cur_row != 2) {
-                    g->selfie_active = true;
+                    g->selfie_pending = true;
                     g->selfie_time = 0;
-                    g->selfie_alpha = 1.0f;
                 }
                 cr->cooldown_timer = difficulty_whore_cooldown(g->level);
             }
-        } else if (!cr->attacking) {
-            // Move forward
+        }
+
+        // Move forward (creatures keep walking even while attacking)
+        if (!cr->cooldown_ready) {
             cr->x += (float)cr->speed * dt;
         }
 
@@ -453,15 +455,24 @@ void night_update(Game *g, float dt) {
         if (g->hits > 5) g->hits = 5;
         if (any_missed) {
             if (IsMusicStreamPlaying(g->assets.bgm_cool))
-                StopMusicStream(g->assets.bgm_cool);
+                PauseMusicStream(g->assets.bgm_cool);
             SetMusicVolume(g->assets.bgm_cool, 0.2f * (float)g->hits);
             PlayMusicStream(g->assets.bgm_cool);
         }
     }
 
     // ===================================================================
-    // SELFIE FLASH EFFECT
+    // SELFIE FLASH EFFECT (0.5s delay before activation)
     // ===================================================================
+    if (g->selfie_pending) {
+        g->selfie_time += dt;
+        if (g->selfie_time >= SELFIE_DELAY) {
+            g->selfie_pending = false;
+            g->selfie_active = true;
+            g->selfie_time = 0;
+            g->selfie_alpha = 1.0f;
+        }
+    }
     if (g->selfie_active) {
         g->selfie_time += dt;
         float attack_time = 2.0f;

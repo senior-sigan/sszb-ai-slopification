@@ -189,6 +189,7 @@ typedef struct {
     CashSprite cash[MAX_CASH_SPRITES];
     float spawn_timer;
     bool selfie_active;
+    bool selfie_pending;
     float selfie_alpha, selfie_time;
     float club_anim_time, frame_anim_time;
     GameAssets assets;
