@@ -208,7 +208,7 @@ void night_update(Game *g, float dt) {
     if (g->spawn_timer >= difficulty_generator_timer(g->level)) {
         g->spawn_timer = 0;
         bool r0 = false, r1 = false;
-        difficulty_spawn_random(g->level, rand() % 10, &r0, &r1);
+        difficulty_spawn_random(g->level, rand(), &r0, &r1);
 
         for (int lane = 0; lane < 2; lane++) {
             if ((lane == 0 && !r0) || (lane == 1 && !r1)) continue;

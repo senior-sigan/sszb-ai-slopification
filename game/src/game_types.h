@@ -211,7 +211,7 @@ float difficulty_hooligan_cooldown(int lvl);
 int difficulty_whore_speed(int lvl);
 float difficulty_whore_cooldown(int lvl);
 float difficulty_generator_timer(int lvl);
-void difficulty_spawn_random(int lvl, int seed, bool *r0, bool *r1);
+void difficulty_spawn_random(int lvl, int raw, bool *r0, bool *r1);
 
 void game_init_house(Room rooms[BUILDING_ROWS][BUILDING_COLS]);
 void game_reset(Game *g);

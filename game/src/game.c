@@ -97,14 +97,45 @@ float difficulty_generator_timer(int lvl) {
     }
 }
 
-void difficulty_spawn_random(int lvl, int seed, bool *r0, bool *r1) {
-    int s = abs(seed) % 10;
+void difficulty_spawn_random(int lvl, int raw, bool *r0, bool *r1) {
+    // Match Scala's rand.nextInt() % 10 behavior:
+    // Scala's nextInt() returns signed ints, so % 10 gives [-9, 9].
+    // Negative seeds fall through all range checks to (true, true).
+    // C's rand() is always non-negative, so we simulate the ~50% negative
+    // probability by using one bit of the raw value as a sign flag.
+    int seed = (raw >> 1) % 10;
+    bool negative = (raw & 1);
+
+    if (negative && lvl >= 1 && lvl <= 5) {
+        *r0 = true;
+        *r1 = true;
+        return;
+    }
+
     switch (lvl) {
-        case 1: *r0 = (s < 5); *r1 = (s >= 5); break;
-        case 2: *r0 = (s >= 5); *r1 = (s <= 4); break;
-        case 3: *r0 = (s >= 4 && s <= 8); *r1 = (s <= 3); break;
-        case 4: *r0 = (s >= 3 && s <= 5); *r1 = (s <= 2); break;
-        case 5: *r0 = (s >= 2 && s <= 3); *r1 = (s <= 1); break;
+        case 1:
+            if (seed <= 4) { *r0 = true; *r1 = false; }
+            else { *r0 = false; *r1 = true; }
+            break;
+        case 2:
+            if (seed <= 4) { *r0 = false; *r1 = true; }
+            else { *r0 = true; *r1 = false; }
+            break;
+        case 3:
+            if (seed <= 3) { *r0 = false; *r1 = true; }
+            else if (seed <= 8) { *r0 = true; *r1 = false; }
+            else { *r0 = true; *r1 = true; }
+            break;
+        case 4:
+            if (seed <= 2) { *r0 = false; *r1 = true; }
+            else if (seed <= 5) { *r0 = true; *r1 = false; }
+            else { *r0 = true; *r1 = true; }
+            break;
+        case 5:
+            if (seed <= 1) { *r0 = false; *r1 = true; }
+            else if (seed <= 3) { *r0 = true; *r1 = false; }
+            else { *r0 = true; *r1 = true; }
+            break;
         default: *r0 = true; *r1 = true; break;
     }
 }
