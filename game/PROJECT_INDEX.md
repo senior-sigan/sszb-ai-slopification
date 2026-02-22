@@ -195,6 +195,10 @@ Split reference docs in `docs/raylib/api/` — see `docs/raylib/api/INDEX.md` fo
 3. `make run` — run the game
 4. Optional: send TCP commands to port 9999 (e.g. `echo "KEY_PRESS 262\n" | nc localhost 9999`)
 
+## Game Design Document
+
+**[docs/GAME_DESIGN.md](docs/GAME_DESIGN.md)** — Complete game design document (in Russian) covering all gameplay features: night/day phases, difficulty system, economy, room layout, weapons, enemies, win/lose conditions, and cheat codes.
+
 ## Architecture Document
 
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Complete C/Raylib architecture blueprint:
