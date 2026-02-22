@@ -1,0 +1,82 @@
+// raylib v5.5 - Audio Loading and Playing Functions
+// Source: raylib.h lines 1621-1702
+
+typedef void (*AudioCallback)(void *bufferData, unsigned int frames);
+
+// --- Audio device ---
+void InitAudioDevice(void);
+void CloseAudioDevice(void);
+bool IsAudioDeviceReady(void);
+void SetMasterVolume(float volume);
+float GetMasterVolume(void);
+
+// --- Wave/Sound loading ---
+Wave LoadWave(const char *fileName);
+Wave LoadWaveFromMemory(const char *fileType, const unsigned char *fileData, int dataSize);
+bool IsWaveValid(Wave wave);
+Sound LoadSound(const char *fileName);
+Sound LoadSoundFromWave(Wave wave);
+Sound LoadSoundAlias(Sound source);                          // Shares sample data, does not own it
+bool IsSoundValid(Sound sound);
+void UpdateSound(Sound sound, const void *data, int sampleCount);
+void UnloadWave(Wave wave);
+void UnloadSound(Sound sound);
+void UnloadSoundAlias(Sound alias);
+bool ExportWave(Wave wave, const char *fileName);
+bool ExportWaveAsCode(Wave wave, const char *fileName);
+
+// --- Sound playback ---
+void PlaySound(Sound sound);
+void StopSound(Sound sound);
+void PauseSound(Sound sound);
+void ResumeSound(Sound sound);
+bool IsSoundPlaying(Sound sound);
+void SetSoundVolume(Sound sound, float volume);              // 1.0 = max
+void SetSoundPitch(Sound sound, float pitch);                // 1.0 = base
+void SetSoundPan(Sound sound, float pan);                    // 0.5 = center
+Wave WaveCopy(Wave wave);
+void WaveCrop(Wave *wave, int initFrame, int finalFrame);
+void WaveFormat(Wave *wave, int sampleRate, int sampleSize, int channels);
+float *LoadWaveSamples(Wave wave);
+void UnloadWaveSamples(float *samples);
+
+// --- Music stream ---
+Music LoadMusicStream(const char *fileName);
+Music LoadMusicStreamFromMemory(const char *fileType, const unsigned char *data, int dataSize);
+bool IsMusicValid(Music music);
+void UnloadMusicStream(Music music);
+void PlayMusicStream(Music music);
+bool IsMusicStreamPlaying(Music music);
+void UpdateMusicStream(Music music);                         // Call each frame
+void StopMusicStream(Music music);
+void PauseMusicStream(Music music);
+void ResumeMusicStream(Music music);
+void SeekMusicStream(Music music, float position);           // In seconds
+void SetMusicVolume(Music music, float volume);
+void SetMusicPitch(Music music, float pitch);
+void SetMusicPan(Music music, float pan);
+float GetMusicTimeLength(Music music);                       // In seconds
+float GetMusicTimePlayed(Music music);                       // In seconds
+
+// --- AudioStream (raw PCM) ---
+AudioStream LoadAudioStream(unsigned int sampleRate, unsigned int sampleSize, unsigned int channels);
+bool IsAudioStreamValid(AudioStream stream);
+void UnloadAudioStream(AudioStream stream);
+void UpdateAudioStream(AudioStream stream, const void *data, int frameCount);
+bool IsAudioStreamProcessed(AudioStream stream);
+void PlayAudioStream(AudioStream stream);
+void PauseAudioStream(AudioStream stream);
+void ResumeAudioStream(AudioStream stream);
+bool IsAudioStreamPlaying(AudioStream stream);
+void StopAudioStream(AudioStream stream);
+void SetAudioStreamVolume(AudioStream stream, float volume);
+void SetAudioStreamPitch(AudioStream stream, float pitch);
+void SetAudioStreamPan(AudioStream stream, float pan);
+void SetAudioStreamBufferSizeDefault(int size);
+void SetAudioStreamCallback(AudioStream stream, AudioCallback callback);
+
+// --- Audio processors ---
+void AttachAudioStreamProcessor(AudioStream stream, AudioCallback processor);
+void DetachAudioStreamProcessor(AudioStream stream, AudioCallback processor);
+void AttachAudioMixedProcessor(AudioCallback processor);     // Entire pipeline
+void DetachAudioMixedProcessor(AudioCallback processor);

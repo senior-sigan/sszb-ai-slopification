@@ -4,8 +4,8 @@
 #define COMMAND_SERVER_IMPLEMENTATION
 #include "command_server.h"
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 480
+#define WINDOW_WIDTH 1366
+#define WINDOW_HEIGHT 768
 #define CMD_PORT 9999
 #define PLAYER_SPEED 10
 #define PLAYER_RADIUS 20
