@@ -14,7 +14,15 @@ Rewriting a Scala/libgdx pixel-art game "Save Soul of Zlaya Babka" into C/Raylib
 game/
 ├── src/                        # C Raylib source (active codebase)
 │   ├── main.c                  # Entry point, game loop, TCP command handling
-│   └── command_server.h        # STB-style header-only TCP command server
+│   ├── command_server.h        # STB-style header-only TCP command server
+│   ├── game_types.h            # All game constants, enums, structs, function declarations
+│   ├── game.c                  # Core game logic: sprite anim, room helpers, difficulty, house layout
+│   ├── assets.h                # Asset loading/unloading declarations
+│   ├── assets.c                # Asset loading/unloading (textures, sounds, fonts, animations)
+│   ├── night.h                 # Night phase declarations (enter/update/render/exit)
+│   ├── night.c                 # Night phase implementation (tower defense gameplay)
+│   ├── day.h                   # Day phase declarations (enter/update/render/exit)
+│   └── day.c                   # Day phase implementation (shopping/upgrade screen)
 ├── legacy/                     # Original Scala/libgdx code (reference only)
 │   ├── sszb/                   # Game-specific code
 │   │   ├── SaveSoulOfZlayaBabka.scala  # Main game class, state routing
@@ -44,20 +52,80 @@ game/
 
 ## C Raylib Application (Current State)
 
-The C version is a **minimal prototype** — a movable green circle with mouse crosshair and TCP command support. The actual game logic from the Scala version has NOT been ported yet.
+Game engine foundation with types, assets, core logic, night phase, and day phase fully implemented.
 
-### src/main.c (110 lines)
-- Window: 640x480, 60 FPS
-- Player: green circle, arrow-key movement
-- Mouse crosshair and click marker
-- HUD: FPS, player position, mouse position, last TCP command
-- TCP commands integrated via `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed`
+### src/main.c (~220 lines)
+- Window: 1366x768 ("Save Soul of Zlaya Babka"), 60 FPS
+- `srand(time(NULL))` called after InitWindow for random number seeding
+- TCP command server on port 9999
+- `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed` — combine physical input + TCP commands (non-static, extern-linked by night.c and day.c)
+- Full 9-state game state machine: LOGO -> MENU -> TUTOR1/2/3 -> NIGHT <-> DAY -> WIN/OVER
+- State transition handlers: enter/exit callbacks for NIGHT and DAY phases; STATE_OVER enter handler is intentionally empty (reset happens on ENTER press)
+- `state_update` — per-state update logic dispatching
+- `state_render` — per-state rendering dispatching
+- Audio device initialization before asset loading
+- Proper cleanup sequence: assets, command server, audio device, window
 
 ### src/command_server.h (210 lines)
 - STB-style header-only library (`#define COMMAND_SERVER_IMPLEMENTATION`)
 - Non-blocking TCP server on localhost
 - Commands: `SCREENSHOT <file>`, `KEY_PRESS <code>`, `MOUSE_PRESS <button>`, `MOVE_MOUSE <x> <y>`, `QUIT`
 - Line-based protocol with `OK\n` / `ERROR <msg>\n` responses
+
+### src/game_types.h (218 lines)
+- All game constants (screen, building grid, entity limits, timing, prices, physics thresholds)
+- Coordinate conversion macros: `FLIP_Y(y,h)`, `ROOM_GDX_X(col)`, `ROOM_GDX_Y(row)`
+- Enums: GameState, RoomType, CreatureType, WeightType, AnimType
+- Structs: Room, Creature, Weight (with hit_l0/hit_l1 one-shot collision flags), Bullet, AnimEffect, CashSprite, SpriteAnim, GameAssets, Game
+- Function declarations for sprite animation, room pricing, difficulty scaling, house init
+
+### src/game.c (163 lines)
+- `sprite_anim_frame/duration/setup` — sprite sheet animation helpers
+- `room_cooldown_time/repair_price/buy_price/weapon_price/grate_price` — room economics
+- `difficulty_*` — per-level enemy speed, cooldowns, spawn patterns
+- `game_init_house` — 3x6 room layout from legacy Scala RenderFactory
+- `game_reset` — full game state reset
+
+### src/assets.h / assets.c (163 lines)
+- `assets_load` — loads all textures, sprite sheets, animations, fonts, music, SFX
+- `assets_unload` — cleans up all loaded resources
+- 51 textures, 9 sprite animations, 1 font, 3 music streams, 8 sound effects
+
+### src/day.h / day.c (~310 lines)
+- **day_enter**: play round_end sound, start birds music, reset frame animation
+- **day_update**: shopping phase input handling:
+  - Arrow keys: navigate rooms (day selection rule: room bought OR adjacent to bought)
+  - KEY_ONE: buy room or repair broken room
+  - KEY_TWO: install grate (if room bought, not broken, no grate)
+  - KEY_THREE: install weapon (if room bought, not broken, not armed)
+  - KEY_FOUR: buy club (win condition, costs 400)
+  - ENTER: advance to next night round
+  - Music stream update for birds BGM
+  - State transitions: ENTER → NIGHT, club_bought → WIN
+- **day_render**: 6-layer render pipeline:
+  1. Background (bg_day)  2. Club building (club_day)
+  3. Room loop: in-window weapons, lights (light_on/light_day), window frames (day variants)
+  4. Money display  5. Animated selection frame  6. Shop UI (buy/repair, grate, weapon, club buttons with green/red price text)
+- **day_exit**: stop birds music, increment level
+
+### src/night.h / night.c (~510 lines)
+- **night_enter**: reset hits/timers/entities, start crickets music
+- **night_update**: full tower defense game loop:
+  - Player input (arrow keys, SPACE fire, cheats L/P/ESC)
+  - AI spawning with difficulty-scaled timers
+  - Creature AI (hooligan shoots bullets, whore does selfie)
+  - Bullet physics (atan2 homing, grate/window damage)
+  - Weight physics (falling, AABB collision on two lanes, kill/reward)
+  - Room cooldowns, loose control (creatures reaching club = hits)
+  - Selfie flash effect, animation/cash cleanup
+  - State transitions: night won → DAY, 5 hits → OVER
+- **night_render**: 15-layer render pipeline with libGDX→raylib coordinate conversion:
+  1. Background  2. Club building  3. Babka in window  4. In-window weapons
+  5. Lights  6. Window frames  7. Babka hands up + weapon  8. Cash sprites
+  9. Creatures (two lanes)  10. Death/crash anims  11. Falling weights
+  12. Bullets  13. Frame selector  14. HUD (hits bar, money, time, level)
+  15. Selfie flash overlay
+- **night_exit**: stop music, clear all entities
 
 ## Game Design (from Legacy Scala Code)
 
@@ -127,14 +195,26 @@ Split reference docs in `docs/raylib/api/` — see `docs/raylib/api/INDEX.md` fo
 3. `make run` — run the game
 4. Optional: send TCP commands to port 9999 (e.g. `echo "KEY_PRESS 262\n" | nc localhost 9999`)
 
-## What Needs Porting
+## Architecture Document
 
-The Scala codebase contains the full game logic that needs to be reimplemented in C/Raylib:
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Complete C/Raylib architecture blueprint:
+- All source files (.h/.c) with module responsibilities
+- Every struct definition (Room, Creature, Bullet, Weight, CrashAnim, CashPickup, SpriteSheet, Assets, Game)
+- State machine (LOGO→MENU→TUTORIAL→NIGHT→DAY→GAMEOVER/WIN)
+- Function signatures for night.c, day.c, assets.c, game.c
+- Raylib coordinate system conversions from libgdx (Y-up → Y-down)
+- Animation frame sequences for all sprite sheets
+- Entity management pattern (fixed arrays + alive flag + compact)
+- 6 implementation milestones in dependency order
 
-1. **State machine** — game flow routing (logo → tutorial → night → day → win/lose)
-2. **Night phase** — enemy AI, spawning, movement, combat, item dropping
-3. **Day phase** — room selection, buying, repairing, upgrading, shop UI
-4. **Entity system** — rooms (3 types), creatures (2 types), bullets, weights, animations
-5. **Rendering** — building grid, window states, character animations, HUD, backgrounds
-6. **Audio** — background music per phase, sound effects for actions
-7. **Difficulty scaling** — enemy speed/cooldown/spawn rates per level
+## What Has Been Ported
+
+1. **Game types & constants** — all structs, enums, macros (game_types.h)
+2. **Core game logic** — sprite animation, room economics, difficulty scaling, house layout (game.c)
+3. **Asset pipeline** — full load/unload of all textures, animations, fonts, audio (assets.c)
+4. **Night phase** — complete tower defense gameplay: AI, spawning, combat, rendering, audio (night.c)
+5. **Day phase** — room shopping/upgrade: navigation, buy/repair/grate/weapon/club, shop UI rendering (day.c)
+
+## What Still Needs Porting
+
+All major systems have been ported. The game is fully playable with complete state machine integration.

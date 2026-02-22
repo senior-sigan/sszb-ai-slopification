@@ -1,110 +1,221 @@
 #include <raylib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #define COMMAND_SERVER_IMPLEMENTATION
 #include "command_server.h"
+#include "game_types.h"
+#include "assets.h"
+#include "night.h"
+#include "day.h"
 
-#define WINDOW_WIDTH 1366
-#define WINDOW_HEIGHT 768
-#define CMD_PORT 9999
-#define PLAYER_SPEED 10
-#define PLAYER_RADIUS 20
-
+static Game game;
 static Command frame_cmd;
 
-static bool ManagedIsKeyPressed(int key) {
-  return IsKeyPressed(key) || (frame_cmd.type == CMD_KEY_PRESS && frame_cmd.key_code == key);
+bool ManagedIsKeyPressed(int key) {
+    return IsKeyPressed(key) || (frame_cmd.type == CMD_KEY_PRESS && frame_cmd.key_code == key);
 }
 
-static bool ManagedIsMouseButtonPressed(int button) {
-  return IsMouseButtonPressed(button) || (frame_cmd.type == CMD_MOUSE_PRESS && frame_cmd.mouse_button == button);
+bool ManagedIsMouseButtonPressed(int button) {
+    return IsMouseButtonPressed(button) || (frame_cmd.type == CMD_MOUSE_PRESS && frame_cmd.mouse_button == button);
+}
+
+static void state_update(float dt) {
+    switch (game.state) {
+        case STATE_LOGO:
+            game.state_timer += dt;
+            if (game.state_timer >= 1.0f) {
+                game.state = STATE_MENU;
+            }
+            break;
+
+        case STATE_MENU:
+            if (ManagedIsKeyPressed(KEY_ENTER)) {
+                game.state = STATE_TUTOR1;
+            }
+            break;
+
+        case STATE_TUTOR1:
+            if (ManagedIsKeyPressed(KEY_ENTER)) {
+                game.state = STATE_TUTOR2;
+            }
+            break;
+
+        case STATE_TUTOR2:
+            if (ManagedIsKeyPressed(KEY_ENTER)) {
+                game.state = STATE_TUTOR3;
+            }
+            break;
+
+        case STATE_TUTOR3:
+            if (ManagedIsKeyPressed(KEY_ENTER)) {
+                game.state = STATE_NIGHT;
+            }
+            break;
+
+        case STATE_NIGHT:
+            night_update(&game, dt);
+            break;
+
+        case STATE_DAY:
+            day_update(&game, dt);
+            break;
+
+        case STATE_WIN:
+            if (ManagedIsKeyPressed(KEY_ENTER)) {
+                game_reset(&game);
+                game.state = STATE_MENU;
+            }
+            break;
+
+        case STATE_OVER:
+            if (ManagedIsKeyPressed(KEY_ENTER)) {
+                game_reset(&game);
+                game.state = STATE_MENU;
+            }
+            break;
+    }
+}
+
+static void state_render(void) {
+    switch (game.state) {
+        case STATE_LOGO: {
+            int logo_x = (SCREEN_WIDTH - game.assets.logo.width) / 2;
+            int logo_y = (SCREEN_HEIGHT - game.assets.logo.height) / 2;
+            DrawTexture(game.assets.logo, logo_x, logo_y, WHITE);
+        } break;
+
+        case STATE_MENU:
+            DrawTexture(game.assets.menu, 0, 0, WHITE);
+            break;
+
+        case STATE_TUTOR1:
+            DrawTexture(game.assets.tutor1, 0, 0, WHITE);
+            break;
+
+        case STATE_TUTOR2:
+            DrawTexture(game.assets.tutor2, 0, 0, WHITE);
+            break;
+
+        case STATE_TUTOR3:
+            DrawTexture(game.assets.tutor3, 0, 0, WHITE);
+            break;
+
+        case STATE_NIGHT:
+            night_render(&game);
+            break;
+
+        case STATE_DAY:
+            day_render(&game);
+            break;
+
+        case STATE_WIN:
+            DrawTexture(game.assets.game_win, 0, 0, WHITE);
+            break;
+
+        case STATE_OVER:
+            DrawTexture(game.assets.game_over, 0, 0, WHITE);
+            break;
+    }
 }
 
 int main(void) {
-  InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Game");
-  SetTargetFPS(60);
-  command_server_init(CMD_PORT);
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Save Soul of Zlaya Babka");
+    srand((unsigned int)time(NULL));
+    SetTargetFPS(60);
+    InitAudioDevice();
+    command_server_init(CMD_PORT);
 
-  Vector2 player_pos = {WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f};
-  Vector2 click_pos = {-1, -1};
-  bool show_click = false;
-  char last_cmd_text[128] = "None";
+    assets_load(&game.assets);
+    game_reset(&game);
 
-  bool running = true;
-  while (running && !WindowShouldClose()) {
-    // Poll TCP command for this frame
-    frame_cmd = command_server_poll();
-    switch (frame_cmd.type) {
-      case CMD_SCREENSHOT:
-        TakeScreenshot(frame_cmd.filename);
-        command_server_respond(true, "OK");
-        snprintf(last_cmd_text, sizeof(last_cmd_text), "SCREENSHOT %s", frame_cmd.filename);
-        break;
+    bool running = true;
+    while (running && !WindowShouldClose()) {
+        // Poll TCP command
+        frame_cmd = command_server_poll();
 
-      case CMD_MOVE_MOUSE:
-        SetMousePosition(frame_cmd.pos.x, frame_cmd.pos.y);
-        command_server_respond(true, "OK");
-        snprintf(last_cmd_text, sizeof(last_cmd_text), "MOVE_MOUSE %d %d", frame_cmd.pos.x, frame_cmd.pos.y);
-        break;
+        // Handle TCP commands
+        switch (frame_cmd.type) {
+            case CMD_SCREENSHOT:
+                TakeScreenshot(frame_cmd.filename);
+                command_server_respond(true, "OK");
+                break;
 
-      case CMD_KEY_PRESS:
-        command_server_respond(true, "OK");
-        snprintf(last_cmd_text, sizeof(last_cmd_text), "KEY_PRESS %d", frame_cmd.key_code);
-        break;
+            case CMD_MOVE_MOUSE:
+                SetMousePosition(frame_cmd.pos.x, frame_cmd.pos.y);
+                command_server_respond(true, "OK");
+                break;
 
-      case CMD_MOUSE_PRESS:
-        command_server_respond(true, "OK");
-        snprintf(last_cmd_text, sizeof(last_cmd_text), "MOUSE_PRESS %d", frame_cmd.mouse_button);
-        break;
+            case CMD_KEY_PRESS:
+                command_server_respond(true, "OK");
+                break;
 
-      case CMD_QUIT:
-        command_server_respond(true, "OK");
-        running = false;
-        break;
+            case CMD_MOUSE_PRESS:
+                command_server_respond(true, "OK");
+                break;
 
-      case CMD_NONE:
-        break;
+            case CMD_QUIT:
+                command_server_respond(true, "OK");
+                running = false;
+                break;
+
+            case CMD_NONE:
+                break;
+        }
+
+        float dt = GetFrameTime();
+
+        // Track previous state for transition detection
+        GameState prev_state = game.state;
+
+        // Update current state
+        state_update(dt);
+
+        // Detect state transitions
+        if (prev_state != game.state) {
+            // Exit handlers for old state
+            switch (prev_state) {
+                case STATE_NIGHT:
+                    night_exit(&game);
+                    break;
+                case STATE_DAY:
+                    day_exit(&game);
+                    break;
+                default:
+                    break;
+            }
+
+            // Enter handlers for new state
+            switch (game.state) {
+                case STATE_LOGO:
+                    game.state_timer = 0;
+                    break;
+                case STATE_NIGHT:
+                    night_enter(&game);
+                    break;
+                case STATE_DAY:
+                    day_enter(&game);
+                    break;
+                case STATE_OVER:
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Render
+        BeginDrawing();
+        ClearBackground(BLACK);
+        state_render();
+        DrawFPS(5, 5);
+        EndDrawing();
     }
 
-    // Game logic — transparent to input source (keyboard/mouse or TCP)
-    if (ManagedIsKeyPressed(KEY_RIGHT)) player_pos.x += PLAYER_SPEED;
-    if (ManagedIsKeyPressed(KEY_LEFT)) player_pos.x -= PLAYER_SPEED;
-    if (ManagedIsKeyPressed(KEY_DOWN)) player_pos.y += PLAYER_SPEED;
-    if (ManagedIsKeyPressed(KEY_UP)) player_pos.y -= PLAYER_SPEED;
-
-    if (ManagedIsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-      click_pos = GetMousePosition();
-      show_click = true;
-    }
-
-    // Drawing
-    BeginDrawing();
-    ClearBackground(BLACK);
-
-    // Player circle
-    DrawCircleV(player_pos, PLAYER_RADIUS, GREEN);
-
-    // Mouse crosshair
-    Vector2 mouse = GetMousePosition();
-    DrawLine((int) mouse.x - 10, (int) mouse.y, (int) mouse.x + 10, (int) mouse.y, WHITE);
-    DrawLine((int) mouse.x, (int) mouse.y - 10, (int) mouse.x, (int) mouse.y + 10, WHITE);
-
-    // Click marker
-    if (show_click) {
-      DrawCircleV(click_pos, 5, RED);
-      DrawCircleLines((int) click_pos.x, (int) click_pos.y, 10, RED);
-    }
-
-    // HUD text
-    DrawFPS(5, 5);
-    DrawText(TextFormat("Player: %.0f, %.0f", player_pos.x, player_pos.y), 5, 25, 16, RAYWHITE);
-    DrawText(TextFormat("Mouse: %.0f, %.0f", mouse.x, mouse.y), 5, 45, 16, RAYWHITE);
-    DrawText(TextFormat("Last cmd: %s", last_cmd_text), 5, 65, 16, YELLOW);
-
-    EndDrawing();
-  }
-
-  command_server_cleanup();
-  CloseWindow();
-  return 0;
+    assets_unload(&game.assets);
+    command_server_cleanup();
+    CloseAudioDevice();
+    CloseWindow();
+    return 0;
 }
