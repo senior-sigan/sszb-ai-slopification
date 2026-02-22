@@ -19,7 +19,8 @@ int main(void) {
   bool show_click = false;
   char last_cmd_text[128] = "None";
 
-  while (!WindowShouldClose()) {
+  bool running = true;
+  while (running && !WindowShouldClose()) {
     // Real keyboard input
     if (IsKeyPressed(KEY_RIGHT)) player_pos.x += PLAYER_SPEED;
     if (IsKeyPressed(KEY_LEFT)) player_pos.x -= PLAYER_SPEED;
@@ -82,6 +83,11 @@ int main(void) {
                  cmd.pos.x, cmd.pos.y);
         break;
       }
+
+      case CMD_QUIT:
+        command_server_respond(true, "OK");
+        running = false;
+        break;
 
       case CMD_NONE:
         break;

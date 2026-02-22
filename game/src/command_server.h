@@ -8,7 +8,8 @@ typedef enum {
   CMD_SCREENSHOT,
   CMD_KEY_PRESS,
   CMD_MOUSE_PRESS,
-  CMD_MOVE_MOUSE
+  CMD_MOVE_MOUSE,
+  CMD_QUIT
 } CommandType;
 
 typedef struct {

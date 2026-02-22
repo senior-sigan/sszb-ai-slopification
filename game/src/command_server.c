@@ -72,6 +72,8 @@ static Command parse_line(const char *line) {
   } else if (strncmp(line, "MOVE_MOUSE ", 11) == 0) {
     cmd.type = CMD_MOVE_MOUSE;
     sscanf(line + 11, "%d %d", &cmd.pos.x, &cmd.pos.y);
+  } else if (strcmp(line, "QUIT") == 0) {
+    cmd.type = CMD_QUIT;
   }
 
   return cmd;
