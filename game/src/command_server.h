@@ -13,7 +13,12 @@ typedef enum {
 
 typedef struct {
     CommandType type;
-    char data[512];
+    union {
+        char filename[512];       // CMD_SCREENSHOT
+        int key_code;             // CMD_KEY_PRESS
+        int mouse_button;         // CMD_MOUSE_PRESS
+        struct { int x, y; } pos; // CMD_MOVE_MOUSE
+    };
 } Command;
 
 int command_server_init(int port);

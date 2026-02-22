@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -53,37 +54,31 @@ int command_server_init(int port) {
 }
 
 static Command parse_line(const char *line) {
-  Command cmd = {.type = CMD_NONE, .data = {0}};
-
-  const char *data = NULL;
-  size_t len = 0;
+  Command cmd = {.type = CMD_NONE};
 
   if (strncmp(line, "SCREENSHOT ", 11) == 0) {
     cmd.type = CMD_SCREENSHOT;
-    data = line + 11;
+    const char *data = line + 11;
+    size_t len = strlen(data);
+    if (len > 0 && len < sizeof(cmd.filename)) {
+      memcpy(cmd.filename, data, len + 1);
+    }
   } else if (strncmp(line, "KEY_PRESS ", 10) == 0) {
     cmd.type = CMD_KEY_PRESS;
-    data = line + 10;
+    cmd.key_code = atoi(line + 10);
   } else if (strncmp(line, "MOUSE_PRESS ", 12) == 0) {
     cmd.type = CMD_MOUSE_PRESS;
-    data = line + 12;
+    cmd.mouse_button = atoi(line + 12);
   } else if (strncmp(line, "MOVE_MOUSE ", 11) == 0) {
     cmd.type = CMD_MOVE_MOUSE;
-    data = line + 11;
-  }
-
-  if (data != NULL) {
-    len = strlen(data);
-    if (len > 0 && len < sizeof(cmd.data)) {
-      memcpy(cmd.data, data, len + 1);
-    }
+    sscanf(line + 11, "%d %d", &cmd.pos.x, &cmd.pos.y);
   }
 
   return cmd;
 }
 
 Command command_server_poll(void) {
-  Command cmd = {.type = CMD_NONE, .data = {0}};
+  Command cmd = {.type = CMD_NONE};
 
   if (server_fd < 0) {
     return cmd;

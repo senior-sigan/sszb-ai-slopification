@@ -1,7 +1,5 @@
 #include <raylib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "command_server.h"
 
@@ -37,15 +35,14 @@ int main(void) {
     Command cmd = command_server_poll();
     switch (cmd.type) {
       case CMD_SCREENSHOT:
-        TakeScreenshot(cmd.data);
+        TakeScreenshot(cmd.filename);
         command_server_respond(true, "OK");
         snprintf(last_cmd_text, sizeof(last_cmd_text), "SCREENSHOT %s",
-                 cmd.data);
+                 cmd.filename);
         break;
 
       case CMD_KEY_PRESS: {
-        int key = atoi(cmd.data);
-        switch (key) {
+        switch (cmd.key_code) {
           case KEY_RIGHT:
             player_pos.x += PLAYER_SPEED;
             break;
@@ -62,29 +59,27 @@ int main(void) {
             break;
         }
         command_server_respond(true, "OK");
-        snprintf(last_cmd_text, sizeof(last_cmd_text), "KEY_PRESS %d", key);
+        snprintf(last_cmd_text, sizeof(last_cmd_text), "KEY_PRESS %d",
+                 cmd.key_code);
         break;
       }
 
       case CMD_MOUSE_PRESS: {
-        int button = atoi(cmd.data);
-        if (button == MOUSE_BUTTON_LEFT) {
+        if (cmd.mouse_button == MOUSE_BUTTON_LEFT) {
           click_pos = GetMousePosition();
           show_click = true;
         }
         command_server_respond(true, "OK");
         snprintf(last_cmd_text, sizeof(last_cmd_text), "MOUSE_PRESS %d",
-                 button);
+                 cmd.mouse_button);
         break;
       }
 
       case CMD_MOVE_MOUSE: {
-        int x = 0, y = 0;
-        sscanf(cmd.data, "%d %d", &x, &y);
-        SetMousePosition(x, y);
+        SetMousePosition(cmd.pos.x, cmd.pos.y);
         command_server_respond(true, "OK");
-        snprintf(last_cmd_text, sizeof(last_cmd_text), "MOVE_MOUSE %d %d", x,
-                 y);
+        snprintf(last_cmd_text, sizeof(last_cmd_text), "MOVE_MOUSE %d %d",
+                 cmd.pos.x, cmd.pos.y);
         break;
       }
 
