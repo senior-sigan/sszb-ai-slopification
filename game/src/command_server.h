@@ -3,7 +3,13 @@
 
 #include <stdbool.h>
 
-typedef enum { CMD_NONE, CMD_SCREENSHOT } CommandType;
+typedef enum {
+  CMD_NONE,
+  CMD_SCREENSHOT,
+  CMD_KEY_PRESS,
+  CMD_MOUSE_PRESS,
+  CMD_MOVE_MOUSE
+} CommandType;
 
 typedef struct {
     CommandType type;
