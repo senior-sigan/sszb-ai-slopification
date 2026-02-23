@@ -1,0 +1,81 @@
+# test_full_cycle.sszb
+# Full cycle: Logo -> Menu -> Tutorials -> Night -> Day -> Night 2
+
+# Logo -> Menu (logo lasts ~60 frames = 1 second)
+LOG Phase 1: Logo to Menu
+WAIT 90
+ASSERT_STATE MENU
+SHOT 01_menu.png
+
+# Menu -> Tutorials -> Night
+LOG Phase 2: Menu to Night
+KEY 257
+WAIT 2
+ASSERT_STATE TUTOR1
+KEY 257
+WAIT 2
+ASSERT_STATE TUTOR2
+KEY 257
+WAIT 2
+ASSERT_STATE TUTOR3
+KEY 257
+WAIT 2
+ASSERT_STATE NIGHT
+SHOT 02_night_start.png
+
+# Night 1: check initial state
+LOG Phase 3: Night gameplay
+ASSERT_EQ level 1
+ASSERT_EQ money 10
+KEY 32
+WAIT 60
+SHOT 03_night_fire.png
+
+# Wait for enemies to spawn
+WAIT 240
+SHOT 04_night_enemies.png
+
+# Skip to day via cheat (L key = 76)
+LOG Phase 4: Skip to Day
+KEY 76
+WAIT 5
+ASSERT_STATE DAY
+SHOT 05_day_start.png
+
+# Day shopping
+LOG Phase 5: Day shopping
+KEY 262
+WAIT 2
+KEY 49
+WAIT 2
+ASSERT_GE money 0
+SHOT 06_day_bought.png
+
+# Advance to Night 2
+LOG Phase 6: Night 2
+KEY 257
+WAIT_STATE NIGHT 120
+ASSERT_STATE NIGHT
+ASSERT_EQ level 2
+SHOT 07_night2.png
+
+# Force game over (P key = 80, cheat that adds hit)
+LOG Phase 7: Game Over
+KEY 80
+KEY 80
+KEY 80
+KEY 80
+KEY 80
+WAIT 30
+ASSERT_STATE OVER
+SHOT 08_gameover.png
+
+# Restart
+LOG Phase 8: Restart
+KEY 257
+WAIT 90
+ASSERT_STATE MENU
+SHOT 09_restart.png
+
+LOG All phases complete
+QUIT

@@ -42,7 +42,10 @@ game/
 ├── build/                      # CMake native build output
 ├── cmake-build-web/            # CMake web/WASM build output (gitignored)
 ├── CMakeLists.txt              # Build config: C23, raylib, WASM support, ASan/UBSan
-├── Makefile                    # Convenience: build, run, build_web, run_web, clean
+├── Makefile                    # Convenience: build, run, test, build_web, run_web, clean
+├── tests/                      # Test scripts (.sszb) and runner
+│   ├── run_test.sh             # Bash script: launch game, send SCRIPT command, check report
+│   └── test_full_cycle.sszb    # Full cycle test: logo→menu→tutorials→night→day→gameover→restart
 ├── src/index.html              # Emscripten HTML shell for web builds
 └── CLAUDE.md                   # Project instructions
 ```
@@ -51,13 +54,14 @@ game/
 
 - **C Application**: `src/main.c` — Raylib game loop with TCP command server on port 9999
 - **Native build**: `make build` then `make run`
+- **Run tests**: `make test` (builds, launches game, runs `.sszb` test script, reports results)
 - **Web build**: `make build_web` then `make run_web` (opens http://localhost:3000/Game.html)
 
 ## C Raylib Application (Current State)
 
 Game engine foundation with types, assets, core logic, night phase, and day phase fully implemented.
 
-### src/main.c (~250 lines)
+### src/main.c (~340 lines)
 - Window: 1366x768 ("Save Soul of Zlaya Babka"), 60 FPS
 - `srand(time(NULL))` called after InitWindow for random number seeding
 - TCP command server on port 9999 (disabled in WASM builds)
@@ -69,12 +73,16 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
 - `#ifdef PLATFORM_WEB` guards for emscripten/WASM builds
 - Audio device initialization before asset loading
 - Proper cleanup sequence: assets, command server, audio device, window
+- Script test support: `game_get_field_int()` for querying game state, `state_name()` for enum→string, ASSERT/GET/WAIT_STATE handling, `script_respond()` for TCP output
 
-### src/command_server.h (210 lines)
+### src/command_server.h (~450 lines)
 - STB-style header-only library (`#define COMMAND_SERVER_IMPLEMENTATION`)
 - Non-blocking TCP server on localhost
-- Commands: `SCREENSHOT <file>`, `KEY_PRESS <code>`, `MOUSE_PRESS <button>`, `MOVE_MOUSE <x> <y>`, `QUIT`
-- Line-based protocol with `OK\n` / `ERROR <msg>\n` responses
+- Single-command mode: `SCREENSHOT <file>`, `KEY_PRESS <code>`, `MOUSE_PRESS <button>`, `MOVE_MOUSE <x> <y>`, `QUIT`
+- Script runner mode: `SCRIPT <file>` loads `.sszb` test script, executes line-per-frame
+- ScriptRunner struct: line buffer, WAIT counter, WAIT_STATE target, pass/fail counters, report buffer
+- Script commands: KEY, MOUSE, MOVE, SHOT, WAIT, WAIT_STATE, ASSERT_STATE, ASSERT_EQ/GE/LE, GET, LOG, QUIT
+- Persistent TCP connection during script execution; sends report on completion
 
 ### src/game_types.h (218 lines)
 - All game constants (screen, building grid, entity limits, timing, prices, physics thresholds)
@@ -239,6 +247,16 @@ All game balance parameters have been audited against the original Scala code. K
 - BGM Cool: pause/resume instead of stop/restart (preserving playback position)
 - Club purchase: C correctly subtracts money (`-= CLUB_PRICE`), fixing an original Scala bug (`= CLUB_PRICE`)
 
+## Automated Testing
+
+Frame-based test scripting system using `.sszb` files. See `docs/TEST_SYSTEM_DESIGN.md` for full design.
+
+- `SCRIPT <file>` TCP command loads a script and executes it line-per-frame inside the game loop
+- Commands: `KEY`, `MOUSE`, `MOVE`, `SHOT`, `WAIT <frames>`, `WAIT_STATE <state> [timeout]`
+- Assertions: `ASSERT_STATE`, `ASSERT_EQ/GE/LE <field> <value>`, `GET <field>`
+- Reports: pass/fail counts + per-line details sent via TCP on completion
+- Run: `make test` or `./tests/run_test.sh [script.sszb]`
+
 ## Status
 
-All major systems have been ported. The game is fully playable with complete state machine integration. Both native (macOS) and web (WASM) builds are functional.
+All major systems have been ported. The game is fully playable with complete state machine integration. Both native (macOS) and web (WASM) builds are functional. Automated frame-based testing is operational.

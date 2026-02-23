@@ -21,23 +21,71 @@ typedef enum {
   CMD_KEY_PRESS,
   CMD_MOUSE_PRESS,
   CMD_MOVE_MOUSE,
-  CMD_QUIT
+  CMD_QUIT,
+  CMD_SCRIPT,
+  CMD_WAIT,
+  CMD_WAIT_STATE,
+  CMD_ASSERT_STATE,
+  CMD_ASSERT_EQ,
+  CMD_ASSERT_GE,
+  CMD_ASSERT_LE,
+  CMD_GET,
+  CMD_LOG
 } CommandType;
 
 typedef struct {
     CommandType type;
     union {
-        char filename[512];       // CMD_SCREENSHOT
+        char filename[512];       // CMD_SCREENSHOT, CMD_SCRIPT
         int key_code;             // CMD_KEY_PRESS
         int mouse_button;         // CMD_MOUSE_PRESS
         struct { int x, y; } pos; // CMD_MOVE_MOUSE
+        int wait_frames;          // CMD_WAIT
+        struct {                   // CMD_WAIT_STATE
+            int target_state;
+            int timeout;
+        } wait_state;
+        int assert_state;         // CMD_ASSERT_STATE
+        struct {                   // CMD_ASSERT_EQ/GE/LE, CMD_GET
+            char field[64];
+            int value;
+        } field_check;
+        char log_text[256];       // CMD_LOG
     };
 } Command;
+
+#define SCRIPT_MAX_LINES 1024
+#define SCRIPT_MAX_LINE_LEN 256
+#define SCRIPT_REPORT_MAX 512
+
+typedef struct {
+    char lines[SCRIPT_MAX_LINES][SCRIPT_MAX_LINE_LEN];
+    int line_count;
+    int current_line;
+    int wait_remaining;
+    int wait_state_target;   // -1 = not waiting
+    int wait_state_timeout;
+    bool active;
+    int pass_count;
+    int fail_count;
+    char report[SCRIPT_REPORT_MAX][SCRIPT_MAX_LINE_LEN];
+    int report_count;
+    int client_fd;
+} ScriptRunner;
 
 int command_server_init(int port);
 Command command_server_poll(void);
 void command_server_respond(bool success, const char *message);
 void command_server_cleanup(void);
+
+// Script runner API
+bool script_runner_load(ScriptRunner *sr, const char *filepath, int client_fd);
+Command script_runner_tick(ScriptRunner *sr);
+void script_runner_finish(ScriptRunner *sr);
+void script_runner_report(ScriptRunner *sr, const char *prefix, const char *msg);
+
+// Global script runner instance
+extern ScriptRunner script_runner;
 
 #endif /* COMMAND_SERVER_H */
 
@@ -58,6 +106,198 @@ static int command_server__fd = -1;
 static int command_server__client_fd = -1;
 static char command_server__recv_buf[COMMAND_SERVER__RECV_BUF_SIZE];
 static int command_server__recv_len = 0;
+
+ScriptRunner script_runner = {0};
+
+static int script__parse_state_name(const char *name) {
+    if (strcmp(name, "LOGO") == 0) return 0;
+    if (strcmp(name, "MENU") == 0) return 1;
+    if (strcmp(name, "TUTOR1") == 0) return 2;
+    if (strcmp(name, "TUTOR2") == 0) return 3;
+    if (strcmp(name, "TUTOR3") == 0) return 4;
+    if (strcmp(name, "NIGHT") == 0) return 5;
+    if (strcmp(name, "DAY") == 0) return 6;
+    if (strcmp(name, "WIN") == 0) return 7;
+    if (strcmp(name, "OVER") == 0) return 8;
+    return -1;
+}
+
+static Command script__parse_line(const char *line) {
+    Command cmd = {.type = CMD_NONE};
+
+    // Skip empty lines and comments
+    if (line[0] == '\0' || line[0] == '#') return cmd;
+
+    if (strncmp(line, "KEY ", 4) == 0) {
+        cmd.type = CMD_KEY_PRESS;
+        cmd.key_code = atoi(line + 4);
+    } else if (strncmp(line, "MOUSE ", 6) == 0) {
+        cmd.type = CMD_MOUSE_PRESS;
+        cmd.mouse_button = atoi(line + 6);
+    } else if (strncmp(line, "MOVE ", 5) == 0) {
+        cmd.type = CMD_MOVE_MOUSE;
+        sscanf(line + 5, "%d %d", &cmd.pos.x, &cmd.pos.y);
+    } else if (strncmp(line, "SHOT ", 5) == 0) {
+        cmd.type = CMD_SCREENSHOT;
+        const char *data = line + 5;
+        size_t len = strlen(data);
+        if (len > 0 && len < sizeof(cmd.filename)) {
+            memcpy(cmd.filename, data, len + 1);
+        }
+    } else if (strncmp(line, "WAIT_STATE ", 11) == 0) {
+        cmd.type = CMD_WAIT_STATE;
+        char state_name[64];
+        int timeout = 600;
+        sscanf(line + 11, "%63s %d", state_name, &timeout);
+        cmd.wait_state.target_state = script__parse_state_name(state_name);
+        cmd.wait_state.timeout = timeout;
+    } else if (strncmp(line, "WAIT ", 5) == 0) {
+        cmd.type = CMD_WAIT;
+        cmd.wait_frames = atoi(line + 5);
+    } else if (strncmp(line, "ASSERT_STATE ", 13) == 0) {
+        cmd.type = CMD_ASSERT_STATE;
+        cmd.assert_state = script__parse_state_name(line + 13);
+    } else if (strncmp(line, "ASSERT_GE ", 10) == 0) {
+        cmd.type = CMD_ASSERT_GE;
+        sscanf(line + 10, "%63s %d", cmd.field_check.field, &cmd.field_check.value);
+    } else if (strncmp(line, "ASSERT_LE ", 10) == 0) {
+        cmd.type = CMD_ASSERT_LE;
+        sscanf(line + 10, "%63s %d", cmd.field_check.field, &cmd.field_check.value);
+    } else if (strncmp(line, "ASSERT_EQ ", 10) == 0) {
+        cmd.type = CMD_ASSERT_EQ;
+        sscanf(line + 10, "%63s %d", cmd.field_check.field, &cmd.field_check.value);
+    } else if (strncmp(line, "GET ", 4) == 0) {
+        cmd.type = CMD_GET;
+        snprintf(cmd.field_check.field, sizeof(cmd.field_check.field), "%s", line + 4);
+    } else if (strncmp(line, "LOG ", 4) == 0) {
+        cmd.type = CMD_LOG;
+        snprintf(cmd.log_text, sizeof(cmd.log_text), "%s", line + 4);
+    } else if (strcmp(line, "QUIT") == 0) {
+        cmd.type = CMD_QUIT;
+    }
+
+    return cmd;
+}
+
+bool script_runner_load(ScriptRunner *sr, const char *filepath, int client_fd) {
+    FILE *f = fopen(filepath, "r");
+    if (!f) {
+        printf("script_runner: failed to open %s\n", filepath);
+        return false;
+    }
+
+    memset(sr, 0, sizeof(*sr));
+    sr->client_fd = client_fd;
+    sr->wait_state_target = -1;
+
+    char buf[SCRIPT_MAX_LINE_LEN];
+    while (fgets(buf, sizeof(buf), f) && sr->line_count < SCRIPT_MAX_LINES) {
+        // Strip trailing newline/whitespace
+        int len = (int)strlen(buf);
+        while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r' || buf[len-1] == ' '))
+            buf[--len] = '\0';
+        memcpy(sr->lines[sr->line_count], buf, (size_t)(len + 1));
+        sr->line_count++;
+    }
+    fclose(f);
+
+    sr->active = true;
+    printf("script_runner: loaded %s (%d lines)\n", filepath, sr->line_count);
+    return true;
+}
+
+void script_runner_report(ScriptRunner *sr, const char *prefix, const char *msg) {
+    if (sr->report_count < SCRIPT_REPORT_MAX) {
+        snprintf(sr->report[sr->report_count], SCRIPT_MAX_LINE_LEN,
+                 "[%s] line %d: %s", prefix, sr->current_line, msg);
+        sr->report_count++;
+    }
+}
+
+static void script__send(ScriptRunner *sr, const char *msg) {
+    if (sr->client_fd >= 0) {
+        send(sr->client_fd, msg, strlen(msg), 0);
+    }
+}
+
+void script_runner_finish(ScriptRunner *sr) {
+    char buf[1024];
+    script__send(sr, "=== SCRIPT REPORT ===\n");
+    snprintf(buf, sizeof(buf), "PASS: %d\nFAIL: %d\nTOTAL: %d\n---\n",
+             sr->pass_count, sr->fail_count, sr->pass_count + sr->fail_count);
+    script__send(sr, buf);
+    for (int i = 0; i < sr->report_count; i++) {
+        script__send(sr, sr->report[i]);
+        script__send(sr, "\n");
+    }
+    script__send(sr, "=== END REPORT ===\n");
+
+    if (sr->client_fd >= 0) {
+        close(sr->client_fd);
+        sr->client_fd = -1;
+    }
+    sr->active = false;
+    printf("script_runner: finished (pass=%d fail=%d)\n", sr->pass_count, sr->fail_count);
+}
+
+Command script_runner_tick(ScriptRunner *sr) {
+    Command cmd = {.type = CMD_NONE};
+
+    if (!sr->active) return cmd;
+
+    // Waiting for frames
+    if (sr->wait_remaining > 0) {
+        sr->wait_remaining--;
+        return cmd;
+    }
+
+    // Waiting for state (checked externally in main.c)
+    if (sr->wait_state_target >= 0) {
+        sr->wait_state_timeout--;
+        if (sr->wait_state_timeout <= 0) {
+            sr->fail_count++;
+            char msg[128];
+            snprintf(msg, sizeof(msg), "WAIT_STATE timeout (target=%d)", sr->wait_state_target);
+            script_runner_report(sr, "FAIL", msg);
+            sr->wait_state_target = -1;
+        }
+        return cmd;
+    }
+
+    // All lines executed
+    if (sr->current_line >= sr->line_count) {
+        script_runner_finish(sr);
+        return cmd;
+    }
+
+    // Parse next line
+    cmd = script__parse_line(sr->lines[sr->current_line++]);
+
+    // Handle script-internal commands that don't go to main.c
+    if (cmd.type == CMD_WAIT) {
+        sr->wait_remaining = cmd.wait_frames;
+        cmd.type = CMD_NONE;
+    } else if (cmd.type == CMD_WAIT_STATE) {
+        sr->wait_state_target = cmd.wait_state.target_state;
+        sr->wait_state_timeout = cmd.wait_state.timeout;
+        cmd.type = CMD_NONE;
+    } else if (cmd.type == CMD_LOG) {
+        printf("script: %s\n", cmd.log_text);
+        script_runner_report(sr, "LOG", cmd.log_text);
+        cmd.type = CMD_NONE;
+    } else if (cmd.type == CMD_QUIT) {
+        // Finish report before quitting
+        script_runner_finish(sr);
+        return cmd;
+    } else if (cmd.type == CMD_NONE) {
+        // Empty line or comment — advance immediately on same frame
+        if (sr->current_line < sr->line_count) {
+            return script_runner_tick(sr);
+        }
+    }
+
+    return cmd;
+}
 
 int command_server_init(int port) {
   command_server__fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -115,6 +355,13 @@ static Command command_server__parse_line(const char *line) {
   } else if (strncmp(line, "MOVE_MOUSE ", 11) == 0) {
     cmd.type = CMD_MOVE_MOUSE;
     sscanf(line + 11, "%d %d", &cmd.pos.x, &cmd.pos.y);
+  } else if (strncmp(line, "SCRIPT ", 7) == 0) {
+    cmd.type = CMD_SCRIPT;
+    const char *data = line + 7;
+    size_t len = strlen(data);
+    if (len > 0 && len < sizeof(cmd.filename)) {
+      memcpy(cmd.filename, data, len + 1);
+    }
   } else if (strcmp(line, "QUIT") == 0) {
     cmd.type = CMD_QUIT;
   }
@@ -127,6 +374,11 @@ Command command_server_poll(void) {
 
   if (command_server__fd < 0) {
     return cmd;
+  }
+
+  // If script is active, execute from script runner
+  if (script_runner.active) {
+    return script_runner_tick(&script_runner);
   }
 
   if (command_server__client_fd < 0) {
@@ -161,6 +413,18 @@ Command command_server_poll(void) {
         memmove(command_server__recv_buf, newline + 1, (size_t) remaining);
       }
       command_server__recv_len = remaining;
+
+      // Handle SCRIPT command: load and start script, keep connection open
+      if (cmd.type == CMD_SCRIPT) {
+        if (script_runner_load(&script_runner, cmd.filename, command_server__client_fd)) {
+          // Transfer ownership of client_fd to script_runner
+          command_server__client_fd = -1;
+          command_server__recv_len = 0;
+        } else {
+          command_server_respond(false, "Failed to load script");
+        }
+        cmd.type = CMD_NONE;
+      }
     }
   } else if (n == 0) {
     close(command_server__client_fd);
