@@ -1,6 +1,7 @@
 #include "assets.h"
 
 #include <raylib.h>
+#include <stddef.h>
 #include <stdio.h>
 
 #include "game_types.h"

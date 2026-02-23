@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <raylib.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "game_types.h"

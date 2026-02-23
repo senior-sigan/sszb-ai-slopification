@@ -1,5 +1,6 @@
 #include <math.h>
 #include <raylib.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "game_types.h"
@@ -83,7 +84,7 @@ int room_weapon_price(const Room* room) {
 }
 
 int difficulty_hooligan_speed(int lvl) {
-  return 65 + lvl * 10 + rand() % (lvl * 10 > 0 ? lvl * 10 : 1);
+  return 65 + (lvl * 10) + (rand() % ((lvl * 10) > 0 ? (lvl * 10) : 1));
 }
 
 float difficulty_hooligan_cooldown(int lvl) {
@@ -107,7 +108,7 @@ int difficulty_whore_speed(int lvl) {
     case 3:
       return 150;
     default:
-      return 100 + lvl * 10 + rand() % (lvl * 10 > 0 ? lvl * 10 : 1);
+      return 100 + (lvl * 10) + (rand() % ((lvl * 10) > 0 ? (lvl * 10) : 1));
   }
 }
 

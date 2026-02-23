@@ -63,9 +63,19 @@ target_link_libraries(${PROJECT_NAME} raylib)
 # clang-tidy target
 find_program(CLANG_TIDY clang-tidy)
 if(CLANG_TIDY)
+    set(TIDY_EXTRA_ARGS "")
+    if(APPLE)
+        execute_process(
+            COMMAND xcrun --show-sdk-path
+            OUTPUT_VARIABLE APPLE_SDK_PATH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        set(TIDY_EXTRA_ARGS "--extra-arg=-isysroot${APPLE_SDK_PATH}")
+    endif()
     add_custom_target(tidy
         COMMAND ${CLANG_TIDY}
             -p ${CMAKE_BINARY_DIR}
+            ${TIDY_EXTRA_ARGS}
             ${SOURCES}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Running clang-tidy..."

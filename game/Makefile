@@ -24,6 +24,10 @@ run:
 test: build
 	./tests/run_test.sh
 
+.PHONY: tidy
+tidy: reload
+	cmake --build build --target tidy
+
 .PHONY: reload_web
 reload_web:
 	emcmake cmake -Bcmake-build-web -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXECUTABLE_SUFFIX=".html"

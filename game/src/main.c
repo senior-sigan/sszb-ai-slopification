@@ -3,7 +3,7 @@
 #include <emscripten/emscripten.h>
 #endif
 
-#include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,18 +86,6 @@ static int GameGetFieldInt(const Game* game_ptr, const char* field, bool* found)
   return 0;
 }
 
-static void ScriptRespond(const char* fmt, ...) {
-  if (script_runner.client_fd < 0) {
-    return;
-  }
-  char buf[512];
-  va_list args;
-  va_start(args, fmt);
-  int len = vsnprintf(buf, sizeof(buf) - 1, fmt, args);
-  va_end(args);
-  buf[len] = '\n';
-  send(script_runner.client_fd, buf, (size_t) (len + 1), 0);
-}
 #endif
 
 bool ManagedIsKeyPressed(int key) {
@@ -300,9 +288,9 @@ static void HandleCommand(void) {
       bool found;
       int val = GameGetFieldInt(&game, frame_cmd.field_check.field, &found);
       if (found) {
-        ScriptRespond("%s=%d", frame_cmd.field_check.field, val);
+        script_runner_respond(&script_runner, "%s=%d", frame_cmd.field_check.field, val);
       } else {
-        ScriptRespond("ERROR unknown field '%s'", frame_cmd.field_check.field);
+        script_runner_respond(&script_runner, "ERROR unknown field '%s'", frame_cmd.field_check.field);
       }
     } break;
 

@@ -1,6 +1,6 @@
 # Project Index: Save Soul of Zlaya Babka (SSZB)
 
-Generated: 2026-02-23
+Generated: 2026-02-23 (updated)
 
 ## Overview
 
@@ -41,8 +41,10 @@ game/
 ├── vendor/raylib/              # Vendored raylib submodule (5.5)
 ├── build/                      # CMake native build output
 ├── cmake-build-web/            # CMake web/WASM build output (gitignored)
-├── CMakeLists.txt              # Build config: C23, raylib, WASM support, ASan/UBSan
-├── Makefile                    # Convenience: build, run, test, build_web, run_web, clean
+├── .clang-tidy                 # clang-tidy config (CamelCase, C-safe checks)
+├── .clang-format               # clang-format config (Google, 120 col)
+├── CMakeLists.txt              # Build config: C23, raylib, WASM support, ASan/UBSan, clang-tidy target
+├── Makefile                    # Convenience: build, run, test, tidy, build_web, run_web, clean
 ├── tests/                      # Test scripts (.sszb) and runner
 │   ├── run_test.sh             # Bash script: launch game, send SCRIPT command, check report
 │   └── test_full_cycle.sszb    # Full cycle test: logo→menu→tutorials→night→day→gameover→restart
@@ -61,30 +63,33 @@ game/
 
 Game engine foundation with types, assets, core logic, night phase, and day phase fully implemented.
 
-### src/main.c (~340 lines)
+### src/main.c (~400 lines)
 - Window: 1366x768 ("Save Soul of Zlaya Babka"), 60 FPS
 - `srand(time(NULL))` called after InitWindow for random number seeding
 - TCP command server on port 9999 (disabled in WASM builds)
 - `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed` — combine physical input + TCP commands (non-static, extern-linked by night.c and day.c); pure raylib input on web
 - Full 9-state game state machine: LOGO -> MENU -> TUTOR1/2/3 -> NIGHT <-> DAY -> WIN/OVER
 - State transition handlers: enter/exit callbacks for NIGHT and DAY phases; STATE_OVER enter handler is intentionally empty (reset happens on ENTER press)
-- `update()` — extracted frame function for emscripten_set_main_loop compatibility
-- `state_update` / `state_render` — per-state logic and rendering dispatching
+- `Update()` — extracted frame function for emscripten_set_main_loop compatibility
+- `StateUpdate` / `StateRender` — per-state logic and rendering dispatching
+- `HandleCommand` / `HandleAssertField` — TCP command dispatch, extracted from Update for cognitive complexity
 - `#ifdef PLATFORM_WEB` guards for emscripten/WASM builds
 - Audio device initialization before asset loading
 - Proper cleanup sequence: assets, command server, audio device, window
-- Script test support: `game_get_field_int()` for querying game state, `state_name()` for enum→string, ASSERT/GET/WAIT_STATE handling, `script_respond()` for TCP output
+- Script test support: `GameGetFieldInt()` for querying game state, `StateName()` for enum→string, ASSERT/GET/WAIT_STATE handling
+- **No network code** — all socket operations delegated to command_server.h
 
-### src/command_server.h (~450 lines)
+### src/command_server.h (~486 lines)
 - STB-style header-only library (`#define COMMAND_SERVER_IMPLEMENTATION`)
-- Non-blocking TCP server on localhost
+- Non-blocking TCP server on localhost — all network code centralized here
 - Single-command mode: `SCREENSHOT <file>`, `KEY_PRESS <code>`, `MOUSE_PRESS <button>`, `MOVE_MOUSE <x> <y>`, `QUIT`
 - Script runner mode: `SCRIPT <file>` loads `.sszb` test script, executes line-per-frame
 - ScriptRunner struct: line buffer, WAIT counter, WAIT_STATE target, pass/fail counters, report buffer
 - Script commands: KEY, MOUSE, MOVE, SHOT, WAIT, WAIT_STATE, ASSERT_STATE, ASSERT_EQ/GE/LE, GET, LOG, QUIT
+- `script_runner_respond()` — variadic TCP response for GET queries (moved from main.c)
 - Persistent TCP connection during script execution; sends report on completion
 
-### src/game_types.h (218 lines)
+### src/game_types.h (226 lines)
 - All game constants (screen, building grid, entity limits, timing, prices, physics thresholds)
 - Coordinate conversion macros: `FLIP_Y(y,h)`, `ROOM_GDX_X(col)`, `ROOM_GDX_Y(row)`
 - Enums: GameState, RoomType, CreatureType, WeightType, AnimType
@@ -98,14 +103,14 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
 - `game_init_house` — 3x6 room layout from legacy Scala RenderFactory
 - `game_reset` — full game state reset
 
-### src/assets.h / assets.c (163 lines)
+### src/assets.h / assets.c (173 lines)
 - `assets_load` — loads all textures, sprite sheets, animations, fonts, music, SFX
 - `assets_unload` — cleans up all loaded resources
 - 51 textures, 9 sprite animations, 1 font, 3 music streams, 8 sound effects
 
-### src/day.h / day.c (~310 lines)
-- **day_enter**: play round_end sound, start birds music, reset frame animation
-- **day_update**: shopping phase input handling:
+### src/day.h / day.c (~321 lines)
+- **DayEnter**: play round_end sound, start birds music, reset frame animation
+- **DayUpdate**: shopping phase input handling:
   - Arrow keys: navigate rooms (day selection rule: room bought OR adjacent to bought)
   - KEY_ONE: buy room or repair broken room
   - KEY_TWO: install grate (if room bought, not broken, no grate)
@@ -114,13 +119,14 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
   - ENTER: advance to next night round
   - Music stream update for birds BGM
   - State transitions: ENTER → NIGHT, club_bought → WIN
-- **day_render**: 6-layer render pipeline:
+- **DayRender**: 6-layer render pipeline:
   1. Background (bg_day)  2. Club building (club_day)
   3. Room loop: in-window weapons, lights (light_on/light_day), window frames (day variants)
   4. Money display  5. Animated selection frame  6. Shop UI (buy/repair, grate, weapon, club buttons with green/red price text)
-- **day_exit**: stop birds music, increment level
+- **DayExit**: stop birds music, increment level
+- Helper functions: `HandleNavigation`, `HandleShopInput`, `HandleBuyOrRepair`, `RenderRoom`, `RenderShopUI`, `DrawPriceLabel`
 
-### src/night.h / night.c (~600 lines)
+### src/night.h / night.c (~913 lines)
 - Functions use CamelCase naming (NightEnter, NightUpdate, NightRender, NightExit)
 - Logic decomposed into ~20 static helper functions to keep cognitive complexity low
 - **NightEnter**: reset hits/timers/entities, start crickets music
@@ -201,13 +207,17 @@ Split reference docs in `docs/raylib/api/` — see `docs/raylib/api/INDEX.md` fo
 - **Native**: macOS (Apple frameworks: IOKit, Cocoa, OpenGL), ASan/UBSan enabled
 - **Web/WASM**: Emscripten with `--embed-file assets/`, ASYNCIFY, GLFW3
 - **Dependency**: raylib vendored as git submodule in `vendor/raylib/`
+- **clang-tidy**: CMake target with macOS sysroot auto-detection; config in `.clang-tidy` (CamelCase functions, bugprone/google/misc/modernize/performance/readability checks)
+- **clang-format**: Google style, 120 columns; config in `.clang-format`
 
 ## Quick Start
 
 ### Native
 1. `make build` — configure and build
 2. `make run` — run the game
-3. Optional: send TCP commands to port 9999 (e.g. `echo "KEY_PRESS 262" | nc localhost 9999`)
+3. `make test` — run automated tests
+4. `make tidy` — run clang-tidy static analysis
+5. Optional: send TCP commands to port 9999 (e.g. `echo "KEY_PRESS 262" | nc localhost 9999`)
 
 ### Web (WASM)
 1. Install Emscripten (`brew install emscripten`)
