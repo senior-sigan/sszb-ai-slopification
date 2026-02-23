@@ -1,6 +1,6 @@
 # Project Index: Save Soul of Zlaya Babka (SSZB)
 
-Generated: 2026-02-22
+Generated: 2026-02-23
 
 ## Overview
 
@@ -38,31 +38,35 @@ game/
 │   ├── textures/               # ~60 sprites (gif/png): windows, characters, UI, backgrounds
 │   ├── sound/                  # ~10 sound effects + 3 background music tracks (mp3)
 │   └── font/                   # 2 TTF fonts (impact, main)
-├── build/                      # CMake build output
-├── CMakeLists.txt              # Build config: C23, raylib 5.5, strict warnings
-├── Makefile                    # Convenience: make build, make run, make clean
+├── vendor/raylib/              # Vendored raylib submodule (5.5)
+├── build/                      # CMake native build output
+├── cmake-build-web/            # CMake web/WASM build output (gitignored)
+├── CMakeLists.txt              # Build config: C23, raylib, WASM support, ASan/UBSan
+├── Makefile                    # Convenience: build, run, build_web, run_web, clean
+├── src/index.html              # Emscripten HTML shell for web builds
 └── CLAUDE.md                   # Project instructions
 ```
 
 ## Entry Points
 
 - **C Application**: `src/main.c` — Raylib game loop with TCP command server on port 9999
-- **Build**: `make build` (CMake + make) or `cmake -Bbuild && cmake --build build -j 4`
-- **Run**: `make run` or `./build/Game`
+- **Native build**: `make build` then `make run`
+- **Web build**: `make build_web` then `make run_web` (opens http://localhost:3000/Game.html)
 
 ## C Raylib Application (Current State)
 
 Game engine foundation with types, assets, core logic, night phase, and day phase fully implemented.
 
-### src/main.c (~220 lines)
+### src/main.c (~250 lines)
 - Window: 1366x768 ("Save Soul of Zlaya Babka"), 60 FPS
 - `srand(time(NULL))` called after InitWindow for random number seeding
-- TCP command server on port 9999
-- `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed` — combine physical input + TCP commands (non-static, extern-linked by night.c and day.c)
+- TCP command server on port 9999 (disabled in WASM builds)
+- `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed` — combine physical input + TCP commands (non-static, extern-linked by night.c and day.c); pure raylib input on web
 - Full 9-state game state machine: LOGO -> MENU -> TUTOR1/2/3 -> NIGHT <-> DAY -> WIN/OVER
 - State transition handlers: enter/exit callbacks for NIGHT and DAY phases; STATE_OVER enter handler is intentionally empty (reset happens on ENTER press)
-- `state_update` — per-state update logic dispatching
-- `state_render` — per-state rendering dispatching
+- `update()` — extracted frame function for emscripten_set_main_loop compatibility
+- `state_update` / `state_render` — per-state logic and rendering dispatching
+- `#ifdef PLATFORM_WEB` guards for emscripten/WASM builds
 - Audio device initialization before asset loading
 - Proper cleanup sequence: assets, command server, audio device, window
 
@@ -184,16 +188,23 @@ Split reference docs in `docs/raylib/api/` — see `docs/raylib/api/INDEX.md` fo
 
 ## Build Configuration
 
-- **CMake**: C23 standard, raylib 5.5, strict warnings (`-Wall -Werror -Wextra -pedantic`)
-- **Platform**: macOS (Apple frameworks: IOKit, Cocoa, OpenGL)
-- **Dependency**: raylib (must be installed, found via `find_package`)
+- **CMake**: C23 standard, vendored raylib, strict warnings (`-Wall -Werror -Wextra -pedantic`)
+- **Native**: macOS (Apple frameworks: IOKit, Cocoa, OpenGL), ASan/UBSan enabled
+- **Web/WASM**: Emscripten with `--embed-file assets/`, ASYNCIFY, GLFW3
+- **Dependency**: raylib vendored as git submodule in `vendor/raylib/`
 
 ## Quick Start
 
-1. Install raylib 5.5 (e.g. `brew install raylib`)
-2. `make build` — configure and build
-3. `make run` — run the game
-4. Optional: send TCP commands to port 9999 (e.g. `echo "KEY_PRESS 262\n" | nc localhost 9999`)
+### Native
+1. `make build` — configure and build
+2. `make run` — run the game
+3. Optional: send TCP commands to port 9999 (e.g. `echo "KEY_PRESS 262" | nc localhost 9999`)
+
+### Web (WASM)
+1. Install Emscripten (`brew install emscripten`)
+2. `make build_web` — configure and build for WASM
+3. `make run_web` — start HTTP server on port 3000
+4. Open http://localhost:3000/Game.html in browser
 
 ## Game Design Document
 
@@ -219,6 +230,15 @@ Split reference docs in `docs/raylib/api/` — see `docs/raylib/api/INDEX.md` fo
 4. **Night phase** — complete tower defense gameplay: AI, spawning, combat, rendering, audio (night.c)
 5. **Day phase** — room shopping/upgrade: navigation, buy/repair/grate/weapon/club, shop UI rendering (day.c)
 
-## What Still Needs Porting
+## Balance Verification
 
-All major systems have been ported. The game is fully playable with complete state machine integration.
+All game balance parameters have been audited against the original Scala code. Key fixes applied:
+- Spawn probability: ~50% of spawns now correctly produce dual-lane enemies (matching Scala's signed-int RNG behavior)
+- Selfie flash: 0.5s delay before activation (matching Scala's deferred callback)
+- Creature movement: enemies keep walking during attack animations (matching Scala's unconditional movement)
+- BGM Cool: pause/resume instead of stop/restart (preserving playback position)
+- Club purchase: C correctly subtracts money (`-= CLUB_PRICE`), fixing an original Scala bug (`= CLUB_PRICE`)
+
+## Status
+
+All major systems have been ported. The game is fully playable with complete state machine integration. Both native (macOS) and web (WASM) builds are functional.
