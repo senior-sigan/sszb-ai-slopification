@@ -1,6 +1,6 @@
 #pragma once
 #include "game_types.h"
-void day_enter(Game *g);
-void day_update(Game *g, float dt);
-void day_render(Game *g);
-void day_exit(Game *g);
+void DayEnter(Game* game);
+void DayUpdate(Game* game, float delta);
+void DayRender(Game* game);
+void DayExit(Game* game);

@@ -41,16 +41,22 @@ for i in $(seq 1 30); do
 done
 
 # Send SCRIPT command and capture the report
-# Keep stdin open so nc doesn't half-close the socket
+# Use a background cat to keep stdin open; kill it when nc exits
 echo "Running script: $SCRIPT"
-REPORT=$( (echo "SCRIPT $SCRIPT"; sleep 120) | nc localhost $PORT 2>/dev/null )
+exec 3< <(echo "SCRIPT $SCRIPT"; sleep 999)
+nc localhost $PORT <&3 > /private/tmp/claude/test_report.txt 2>/dev/null &
+NC_PID=$!
 
-# Wait a moment for game to process QUIT
-sleep 1
-
-# Kill game if still running
-kill $GAME_PID 2>/dev/null || true
+# Wait for game to finish (QUIT closes it)
 wait $GAME_PID 2>/dev/null || true
+
+# nc should exit when server closes fd; give it a moment then force-kill
+sleep 0.5
+kill $NC_PID 2>/dev/null || true
+wait $NC_PID 2>/dev/null || true
+exec 3<&-
+
+REPORT=$(cat /private/tmp/claude/test_report.txt 2>/dev/null)
 
 echo ""
 echo "$REPORT"

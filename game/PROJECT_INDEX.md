@@ -91,7 +91,7 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
 - Structs: Room, Creature, Weight (with hit_l0/hit_l1 one-shot collision flags), Bullet, AnimEffect, CashSprite, SpriteAnim, GameAssets, Game
 - Function declarations for sprite animation, room pricing, difficulty scaling, house init
 
-### src/game.c (163 lines)
+### src/game.c (~276 lines)
 - `sprite_anim_frame/duration/setup` — sprite sheet animation helpers
 - `room_cooldown_time/repair_price/buy_price/weapon_price/grate_price` — room economics
 - `difficulty_*` — per-level enemy speed, cooldowns, spawn patterns
@@ -120,24 +120,25 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
   4. Money display  5. Animated selection frame  6. Shop UI (buy/repair, grate, weapon, club buttons with green/red price text)
 - **day_exit**: stop birds music, increment level
 
-### src/night.h / night.c (~510 lines)
-- **night_enter**: reset hits/timers/entities, start crickets music
-- **night_update**: full tower defense game loop:
-  - Player input (arrow keys, SPACE fire, cheats L/P/ESC)
-  - AI spawning with difficulty-scaled timers
-  - Creature AI (hooligan shoots bullets, whore does selfie)
-  - Bullet physics (atan2 homing, grate/window damage)
-  - Weight physics (falling, AABB collision on two lanes, kill/reward)
-  - Room cooldowns, loose control (creatures reaching club = hits)
-  - Selfie flash effect, animation/cash cleanup
-  - State transitions: night won → DAY, 5 hits → OVER
-- **night_render**: 15-layer render pipeline with libGDX→raylib coordinate conversion:
-  1. Background  2. Club building  3. Babka in window  4. In-window weapons
-  5. Lights  6. Window frames  7. Babka hands up + weapon  8. Cash sprites
-  9. Creatures (two lanes)  10. Death/crash anims  11. Falling weights
-  12. Bullets  13. Frame selector  14. HUD (hits bar, money, time, level)
-  15. Selfie flash overlay
-- **night_exit**: stop music, clear all entities
+### src/night.h / night.c (~600 lines)
+- Functions use CamelCase naming (NightEnter, NightUpdate, NightRender, NightExit)
+- Logic decomposed into ~20 static helper functions to keep cognitive complexity low
+- **NightEnter**: reset hits/timers/entities, start crickets music
+- **NightUpdate**: orchestrates subsystem updates:
+  - UpdateInputHandling — arrow keys, SPACE fire, cheats L/P/ESC
+  - UpdateFireWeapon — spawn falling weights from armed rooms
+  - SpawnCreatures — AI spawning with difficulty-scaled timers
+  - UpdateCreatures / UpdateCreatureAttack — creature AI (hooligan shoots bullets, whore does selfie)
+  - UpdateBullets — atan2 homing, grate/window damage
+  - UpdateWeights / CheckWeightCollision* / WeightHitGround — falling, AABB collision on two lanes, kill/reward
+  - UpdateRoomCooldowns, UpdateLooseControl, UpdateSelfieFlash, UpdateAnimations
+  - State transitions: night won -> DAY, 5 hits -> OVER
+- **NightRender**: delegates to 13 render helpers for 15-layer pipeline:
+  RenderClubBuilding, RenderBabkaInWindow, RenderInWindowWeapons, RenderLights,
+  RenderWindowFrames, RenderBabkaHandsUp, RenderCashSprites, RenderCreatures,
+  RenderDeathAnimations, RenderFallingWeights, RenderBullets, RenderFrameSelector,
+  RenderHud, RenderSelfieFlash
+- **NightExit**: stop music, clear all entities
 
 ## Game Design (from Legacy Scala Code)
 
