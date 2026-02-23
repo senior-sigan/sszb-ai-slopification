@@ -60,6 +60,19 @@ target_include_directories(${PROJECT_NAME} PUBLIC SYSTEM ${THIRDPARTY_DIR}/rayli
 
 target_link_libraries(${PROJECT_NAME} raylib)
 
+# clang-tidy target
+find_program(CLANG_TIDY clang-tidy)
+if(CLANG_TIDY)
+    add_custom_target(tidy
+        COMMAND ${CLANG_TIDY}
+            -p ${CMAKE_BINARY_DIR}
+            ${SOURCES}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running clang-tidy..."
+        VERBATIM
+    )
+endif()
+
 # Checks if OSX and links appropriate frameworks (Only required on MacOS)
 if(APPLE)
     target_link_libraries(${PROJECT_NAME} "-framework IOKit")
