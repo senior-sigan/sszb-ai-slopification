@@ -6,10 +6,7 @@
 #include <string.h>
 
 #include "game_types.h"
-
-// ManagedIsKeyPressed is defined in main.c and combines physical keyboard
-// input with TCP-injected key presses (for automated testing).
-extern bool ManagedIsKeyPressed(int key);
+#include "input.h"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -185,17 +182,17 @@ static void UpdateFireWeapon(Game* game) {
     }
   }
   room->cooldown_ready = false;
-  room->cooldown_timer = room_cooldown_time(room);
+  room->cooldown_timer = RoomCooldownTime(room);
 }
 
 static void SpawnCreatures(Game* game) {
-  if (game->spawn_timer < difficulty_generator_timer(game->level)) {
+  if (game->spawn_timer < DifficultyGeneratorTimer(game->level)) {
     return;
   }
   game->spawn_timer = 0;
   bool spawn_r0 = false;
   bool spawn_r1 = false;
-  difficulty_spawn_random(game->level, rand(), &spawn_r0, &spawn_r1);
+  DifficultySpawnRandom(game->level, rand(), &spawn_r0, &spawn_r1);
 
   for (int lane = 0; lane < 2; lane++) {
     if ((lane == 0 && !spawn_r0) || (lane == 1 && !spawn_r1)) {
@@ -216,13 +213,13 @@ static void SpawnCreatures(Game* game) {
         if (is_hooligan) {
           creature->type = CREATURE_HOOLIGAN;
           creature->width = HOOLIGAN_W;
-          creature->speed = difficulty_hooligan_speed(game->level);
-          creature->cooldown_timer = difficulty_hooligan_cooldown(game->level) / 2.0f;
+          creature->speed = DifficultyHooliganSpeed(game->level);
+          creature->cooldown_timer = DifficultyHooliganCooldown(game->level) / 2.0f;
         } else {
           creature->type = CREATURE_WHORE;
           creature->width = WHORE_W;
-          creature->speed = difficulty_whore_speed(game->level);
-          creature->cooldown_timer = difficulty_whore_cooldown(game->level);
+          creature->speed = DifficultyWhoreSpeed(game->level);
+          creature->cooldown_timer = DifficultyWhoreCooldown(game->level);
         }
         break;
       }
@@ -269,7 +266,7 @@ static void UpdateCreatureAttack(Game* game, Creature* creature) {
         }
       }
     }
-    creature->cooldown_timer = difficulty_hooligan_cooldown(game->level);
+    creature->cooldown_timer = DifficultyHooliganCooldown(game->level);
   } else {
     // Whore: selfie effect (with 0.5s delay before flash)
     PlaySound(game->assets.snd_selfie);
@@ -277,7 +274,7 @@ static void UpdateCreatureAttack(Game* game, Creature* creature) {
       game->selfie_pending = true;
       game->selfie_time = 0;
     }
-    creature->cooldown_timer = difficulty_whore_cooldown(game->level);
+    creature->cooldown_timer = DifficultyWhoreCooldown(game->level);
   }
 }
 
@@ -504,7 +501,7 @@ static void UpdateAnimations(Game* game, float delta) {
     }
     effect->state_time += delta;
     const SpriteAnim* anim = AnimForType(&game->assets, effect->type);
-    if (effect->state_time >= sprite_anim_duration(anim)) {
+    if (effect->state_time >= SpriteAnimDuration(anim)) {
       effect->active = false;
     }
   }
@@ -516,7 +513,7 @@ static void UpdateAnimations(Game* game, float delta) {
 
 static void RenderClubBuilding(Game* game) {
   GameAssets* assets = &game->assets;
-  Rectangle src = sprite_anim_frame(&assets->anim_club_night, game->club_anim_time);
+  Rectangle src = SpriteAnimFrame(&assets->anim_club_night, game->club_anim_time);
   Rectangle dst = {(float) CLUB_X, (float) FLIP_Y(CLUB_Y_GDX, 484), src.width, src.height};
   DrawTexturePro(assets->club_night_sheet, src, dst, (Vector2) {0, 0}, 0, WHITE);
 }
@@ -671,7 +668,7 @@ static void RenderCreatures(Game* game) {
         sanim = creature->attacking ? &assets->anim_whore_attack : &assets->anim_whore_walk;
       }
 
-      Rectangle src = sprite_anim_frame(sanim, creature->state_time);
+      Rectangle src = SpriteAnimFrame(sanim, creature->state_time);
       Rectangle dst = {creature->x, (float) FLIP_Y((int) lane_y, CREATURE_H), (float) sanim->frame_width,
                        (float) sanim->frame_height};
       DrawTexturePro(sanim->sheet, src, dst, (Vector2) {0, 0}, 0, WHITE);
@@ -687,7 +684,7 @@ static void RenderDeathAnimations(Game* game) {
       continue;
     }
     const SpriteAnim* anim = AnimForType(assets, effect->type);
-    Rectangle src = sprite_anim_frame(anim, effect->state_time);
+    Rectangle src = SpriteAnimFrame(anim, effect->state_time);
     Rectangle dst = {effect->x, (float) FLIP_Y((int) effect->y, anim->frame_height), (float) anim->frame_width,
                      (float) anim->frame_height};
     DrawTexturePro(anim->sheet, src, dst, (Vector2) {0, 0}, 0, WHITE);
@@ -730,7 +727,7 @@ static void RenderBullets(Game* game) {
 
 static void RenderFrameSelector(Game* game) {
   GameAssets* assets = &game->assets;
-  Rectangle src = sprite_anim_frame(&assets->anim_frame, game->frame_anim_time);
+  Rectangle src = SpriteAnimFrame(&assets->anim_frame, game->frame_anim_time);
   int grid_x = ROOM_GDX_X(game->cur_col);
   int grid_y = ROOM_GDX_Y(game->cur_row);
   // Frame is 138x138, slightly larger than the 128x128 room.

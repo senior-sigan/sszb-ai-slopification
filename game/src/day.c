@@ -3,10 +3,7 @@
 #include <raylib.h>
 
 #include "game_types.h"
-
-// ManagedIsKeyPressed is defined in main.c and combines physical keyboard
-// input with TCP-injected key presses (for automated testing).
-extern bool ManagedIsKeyPressed(int key);
+#include "input.h"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,7 +56,7 @@ static void HandleBuyOrRepair(Game* game, Room* room) {
   if (room->bought) {
     // Repair if broken
     if (room->broken) {
-      int cost = room_repair_price(room);
+      int cost = RoomRepairPrice(room);
       if (game->money >= cost) {
         room->broken = false;
         PlaySound(game->assets.snd_bye);
@@ -68,7 +65,7 @@ static void HandleBuyOrRepair(Game* game, Room* room) {
     }
   } else {
     // Buy
-    int cost = room_buy_price(room);
+    int cost = RoomBuyPrice(room);
     if (game->money >= cost) {
       room->bought = true;
       PlaySound(game->assets.snd_bye);
@@ -89,7 +86,7 @@ static void HandleShopInput(Game* game) {
   // NUM_2 -- Install grate
   if (ManagedIsKeyPressed(KEY_TWO)) {
     if (room->bought && !room->broken && !room->grate) {
-      int cost = room_grate_price(room);
+      int cost = RoomGratePrice(room);
       if (game->money >= cost) {
         room->grate = true;
         PlaySound(game->assets.snd_bye);
@@ -101,7 +98,7 @@ static void HandleShopInput(Game* game) {
   // NUM_3 -- Install weapon
   if (ManagedIsKeyPressed(KEY_THREE)) {
     if (room->bought && !room->broken && !room->armed) {
-      int cost = room_weapon_price(room);
+      int cost = RoomWeaponPrice(room);
       if (game->money >= cost) {
         room->armed = true;
         PlaySound(game->assets.snd_bye);
@@ -184,13 +181,13 @@ static void RenderShopUI(Game* game) {
   // Buy/Repair button (position 0,0 in libGDX)
   if (!sel->bought) {
     DrawTexture(assets->shop_buy, 0, FLIP_Y(0, assets->shop_buy.height), WHITE);
-    int cost = room_buy_price(sel);
+    int cost = RoomBuyPrice(sel);
     Color price_color = (game->money >= cost) ? green : red;
     DrawPriceLabel(&assets->main_font, cost, price_color, 200.0f);
   } else {
     DrawTexture(assets->shop_repair, 0, FLIP_Y(0, assets->shop_repair.height), WHITE);
     if (sel->broken) {
-      int cost = room_repair_price(sel);
+      int cost = RoomRepairPrice(sel);
       Color price_color = (game->money >= cost) ? green : red;
       DrawPriceLabel(&assets->main_font, cost, price_color, 200.0f);
     }
@@ -199,7 +196,7 @@ static void RenderShopUI(Game* game) {
   // Grate button (position 343,0 in libGDX)
   DrawTexture(assets->shop_grate, 343, FLIP_Y(0, assets->shop_grate.height), WHITE);
   if (sel->bought && !sel->broken && !sel->grate) {
-    int cost = room_grate_price(sel);
+    int cost = RoomGratePrice(sel);
     Color price_color = (game->money >= cost) ? green : red;
     DrawPriceLabel(&assets->main_font, cost, price_color, 543.0f);
   }
@@ -221,7 +218,7 @@ static void RenderShopUI(Game* game) {
     DrawTexture(weapon_btn, 686, FLIP_Y(0, weapon_btn.height), WHITE);
   }
   if (sel->bought && !sel->broken && !sel->armed) {
-    int cost = room_weapon_price(sel);
+    int cost = RoomWeaponPrice(sel);
     Color price_color = (game->money >= cost) ? green : red;
     DrawPriceLabel(&assets->main_font, cost, price_color, 886.0f);
   }
@@ -309,7 +306,7 @@ void DayRender(Game* game) {
 
   // 5. Selection frame (animated, 2 frames, 138x138)
   {
-    Rectangle src = sprite_anim_frame(&assets->anim_frame, game->frame_anim_time);
+    Rectangle src = SpriteAnimFrame(&assets->anim_frame, game->frame_anim_time);
     int grid_x = ROOM_GDX_X(game->cur_col);
     int grid_y = ROOM_GDX_Y(game->cur_row);
     Rectangle dst = {(float) (grid_x - 5), (float) FLIP_Y(grid_y - 5, 138), 138.0f, 138.0f};

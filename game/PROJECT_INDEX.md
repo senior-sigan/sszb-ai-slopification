@@ -1,6 +1,6 @@
 # Project Index: Save Soul of Zlaya Babka (SSZB)
 
-Generated: 2026-02-23 (updated)
+Generated: 2026-02-23 (updated: refactor snake_case to CamelCase, add input.h, clang-tidy/CMake cleanup)
 
 ## Overview
 
@@ -14,11 +14,12 @@ Rewriting a Scala/libgdx pixel-art game "Save Soul of Zlaya Babka" into C/Raylib
 game/
 ├── src/                        # C Raylib source (active codebase)
 │   ├── main.c                  # Entry point, game loop, TCP command handling
-│   ├── command_server.h        # STB-style header-only TCP command server
-│   ├── game_types.h            # All game constants, enums, structs, function declarations
-│   ├── game.c                  # Core game logic: sprite anim, room helpers, difficulty, house layout
-│   ├── assets.h                # Asset loading/unloading declarations
+│   ├── command_server.h        # STB-style header-only TCP command server (CamelCase API)
+│   ├── game_types.h            # All game constants, enums, structs, CamelCase function declarations
+│   ├── game.c                  # Core game logic: sprite anim, room helpers, difficulty, house layout (CamelCase)
+│   ├── assets.h                # Asset loading/unloading declarations (AssetsLoad/AssetsUnload)
 │   ├── assets.c                # Asset loading/unloading (textures, sounds, fonts, animations)
+│   ├── input.h                 # Managed input declarations (ManagedIsKeyPressed, ManagedIsMouseButtonPressed)
 │   ├── night.h                 # Night phase declarations (enter/update/render/exit)
 │   ├── night.c                 # Night phase implementation (tower defense gameplay)
 │   ├── day.h                   # Day phase declarations (enter/update/render/exit)
@@ -41,9 +42,9 @@ game/
 ├── vendor/raylib/              # Vendored raylib submodule (5.5)
 ├── build/                      # CMake native build output
 ├── cmake-build-web/            # CMake web/WASM build output (gitignored)
-├── .clang-tidy                 # clang-tidy config (CamelCase, C-safe checks)
+├── .clang-tidy                 # clang-tidy config (CamelCase, C-safe checks, HeaderFilterRegex: "src/.*")
 ├── .clang-format               # clang-format config (Google, 120 col)
-├── CMakeLists.txt              # Build config: C23, raylib, WASM support, ASan/UBSan, clang-tidy target
+├── CMakeLists.txt              # Build config: C23, raylib, WASM support, ASan/UBSan (native only), clang-tidy target
 ├── Makefile                    # Convenience: build, run, test, tidy, build_web, run_web, clean
 ├── tests/                      # Test scripts (.sszb) and runner
 │   ├── run_test.sh             # Bash script: launch game, send SCRIPT command, check report
@@ -63,11 +64,17 @@ game/
 
 Game engine foundation with types, assets, core logic, night phase, and day phase fully implemented.
 
-### src/main.c (~400 lines)
+### src/input.h (6 lines)
+- Declares `ManagedIsKeyPressed(int key)` and `ManagedIsMouseButtonPressed(int button)`
+- Managed input functions combining physical Raylib input + TCP-injected input
+- Defined in `main.c`, included by `night.c` and `day.c`
+- Previously these were extern-declared inline in night.c and day.c
+
+### src/main.c (~402 lines)
 - Window: 1366x768 ("Save Soul of Zlaya Babka"), 60 FPS
 - `srand(time(NULL))` called after InitWindow for random number seeding
 - TCP command server on port 9999 (disabled in WASM builds)
-- `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed` — combine physical input + TCP commands (non-static, extern-linked by night.c and day.c); pure raylib input on web
+- `ManagedIsKeyPressed` / `ManagedIsMouseButtonPressed` — defined here, declared in `input.h`; pure raylib input on web
 - Full 9-state game state machine: LOGO -> MENU -> TUTOR1/2/3 -> NIGHT <-> DAY -> WIN/OVER
 - State transition handlers: enter/exit callbacks for NIGHT and DAY phases; STATE_OVER enter handler is intentionally empty (reset happens on ENTER press)
 - `Update()` — extracted frame function for emscripten_set_main_loop compatibility
@@ -79,36 +86,42 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
 - Script test support: `GameGetFieldInt()` for querying game state, `StateName()` for enum→string, ASSERT/GET/WAIT_STATE handling
 - **No network code** — all socket operations delegated to command_server.h
 
-### src/command_server.h (~486 lines)
+### src/command_server.h (~516 lines)
 - STB-style header-only library (`#define COMMAND_SERVER_IMPLEMENTATION`)
 - Non-blocking TCP server on localhost — all network code centralized here
+- All functions use CamelCase: `CommandServerInit`, `CommandServerPoll`, `CommandServerRespond`, `CommandServerCleanup`
+- Extracted `CommandServerReadClient` helper to reduce cognitive complexity of `CommandServerPoll`
 - Single-command mode: `SCREENSHOT <file>`, `KEY_PRESS <code>`, `MOUSE_PRESS <button>`, `MOVE_MOUSE <x> <y>`, `QUIT`
 - Script runner mode: `SCRIPT <file>` loads `.sszb` test script, executes line-per-frame
 - ScriptRunner struct: line buffer, WAIT counter, WAIT_STATE target, pass/fail counters, report buffer
+- Script runner API: `ScriptRunnerLoad`, `ScriptRunnerTick`, `ScriptRunnerFinish`, `ScriptRunnerReport`, `ScriptRunnerRespond`
 - Script commands: KEY, MOUSE, MOVE, SHOT, WAIT, WAIT_STATE, ASSERT_STATE, ASSERT_EQ/GE/LE, GET, LOG, QUIT
-- `script_runner_respond()` — variadic TCP response for GET queries (moved from main.c)
+- `ScriptRunnerRespond()` — variadic TCP response for GET queries (moved from main.c)
 - Persistent TCP connection during script execution; sends report on completion
+- Added braces to all single-statement if/return bodies; fixed `bugprone-misplaced-widening-cast`
 
-### src/game_types.h (226 lines)
+### src/game_types.h (225 lines)
 - All game constants (screen, building grid, entity limits, timing, prices, physics thresholds)
 - Coordinate conversion macros: `FLIP_Y(y,h)`, `ROOM_GDX_X(col)`, `ROOM_GDX_Y(row)`
 - Enums: GameState, RoomType, CreatureType, WeightType, AnimType
 - Structs: Room, Creature, Weight (with hit_l0/hit_l1 one-shot collision flags), Bullet, AnimEffect, CashSprite, SpriteAnim, GameAssets, Game
-- Function declarations for sprite animation, room pricing, difficulty scaling, house init
+- Removed unused `#include <stdlib.h>`
+- CamelCase function declarations: `SpriteAnimFrame`, `SpriteAnimDuration`, `SpriteAnimSetup`, `RoomCooldownTime`, `RoomRepairPrice`, `RoomBuyPrice`, `RoomWeaponPrice`, `RoomGratePrice`, `DifficultyHooliganSpeed`, `DifficultyHooliganCooldown`, `DifficultyWhoreSpeed`, `DifficultyWhoreCooldown`, `DifficultyGeneratorTimer`, `DifficultySpawnRandom`, `GameInitHouse`, `GameReset`
 
 ### src/game.c (~276 lines)
-- `sprite_anim_frame/duration/setup` — sprite sheet animation helpers
-- `room_cooldown_time/repair_price/buy_price/weapon_price/grate_price` — room economics
-- `difficulty_*` — per-level enemy speed, cooldowns, spawn patterns
-- `game_init_house` — 3x6 room layout from legacy Scala RenderFactory
-- `game_reset` — full game state reset
+- All functions use CamelCase naming convention
+- `SpriteAnimFrame` / `SpriteAnimDuration` / `SpriteAnimSetup` — sprite sheet animation helpers
+- `RoomCooldownTime` / `RoomRepairPrice` / `RoomBuyPrice` / `RoomWeaponPrice` / `RoomGratePrice` — room economics
+- `DifficultyHooliganSpeed` / `DifficultyHooliganCooldown` / `DifficultyWhoreSpeed` / `DifficultyWhoreCooldown` / `DifficultyGeneratorTimer` / `DifficultySpawnRandom` — per-level enemy speed, cooldowns, spawn patterns
+- `GameInitHouse` — 3x6 room layout from legacy Scala RenderFactory
+- `GameReset` — full game state reset
 
-### src/assets.h / assets.c (173 lines)
-- `assets_load` — loads all textures, sprite sheets, animations, fonts, music, SFX
-- `assets_unload` — cleans up all loaded resources
+### src/assets.h / assets.c (4 + 171 lines)
+- `AssetsLoad` — loads all textures, sprite sheets, animations, fonts, music, SFX
+- `AssetsUnload` — cleans up all loaded resources
 - 51 textures, 9 sprite animations, 1 font, 3 music streams, 8 sound effects
 
-### src/day.h / day.c (~321 lines)
+### src/day.h / day.c (~318 lines)
 - **DayEnter**: play round_end sound, start birds music, reset frame animation
 - **DayUpdate**: shopping phase input handling:
   - Arrow keys: navigate rooms (day selection rule: room bought OR adjacent to bought)
@@ -126,7 +139,7 @@ Game engine foundation with types, assets, core logic, night phase, and day phas
 - **DayExit**: stop birds music, increment level
 - Helper functions: `HandleNavigation`, `HandleShopInput`, `HandleBuyOrRepair`, `RenderRoom`, `RenderShopUI`, `DrawPriceLabel`
 
-### src/night.h / night.c (~913 lines)
+### src/night.h / night.c (~910 lines)
 - Functions use CamelCase naming (NightEnter, NightUpdate, NightRender, NightExit)
 - Logic decomposed into ~20 static helper functions to keep cognitive complexity low
 - **NightEnter**: reset hits/timers/entities, start crickets music
@@ -203,11 +216,11 @@ Split reference docs in `docs/raylib/api/` — see `docs/raylib/api/INDEX.md` fo
 
 ## Build Configuration
 
-- **CMake**: C23 standard, vendored raylib, strict warnings (`-Wall -Werror -Wextra -pedantic`)
-- **Native**: macOS (Apple frameworks: IOKit, Cocoa, OpenGL), ASan/UBSan enabled
-- **Web/WASM**: Emscripten with `--embed-file assets/`, ASYNCIFY, GLFW3
+- **CMake**: C23 standard (no C++ standard set), vendored raylib, strict warnings (`-Wall -Werror -Wextra -pedantic`)
+- **Native**: macOS (Apple frameworks: IOKit, Cocoa, OpenGL), ASan/UBSan enabled (conditional on `NOT EMSCRIPTEN`)
+- **Web/WASM**: Emscripten with `--embed-file assets/`, ASYNCIFY, GLFW3; sanitizers disabled
 - **Dependency**: raylib vendored as git submodule in `vendor/raylib/`
-- **clang-tidy**: CMake target with macOS sysroot auto-detection; config in `.clang-tidy` (CamelCase functions, bugprone/google/misc/modernize/performance/readability checks)
+- **clang-tidy**: CMake target with macOS sysroot auto-detection; config in `.clang-tidy` (CamelCase functions, `HeaderFilterRegex: "src/.*"`, bugprone/google/misc/modernize/performance/readability checks; disabled: `modernize-macro-to-enum`, `readability-identifier-length`, `misc-no-recursion`)
 - **clang-format**: Google style, 120 columns; config in `.clang-format`
 
 ## Quick Start

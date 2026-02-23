@@ -1,7 +1,6 @@
 #pragma once
 #include <raylib.h>
 #include <stdbool.h>
-#include <stdlib.h>
 
 // ===== CONSTANTS =====
 #define SCREEN_WIDTH 1366
@@ -204,23 +203,23 @@ typedef struct {
 } Game;
 
 // ===== FUNCTION DECLARATIONS =====
-Rectangle sprite_anim_frame(const SpriteAnim* anim, float time);
-float sprite_anim_duration(const SpriteAnim* anim);
-void sprite_anim_setup(SpriteAnim* anim, Texture2D sheet, int frame_w, int frame_h, const int* idx, int count,
-                       float dur, bool loop);
+Rectangle SpriteAnimFrame(const SpriteAnim* anim, float time);
+float SpriteAnimDuration(const SpriteAnim* anim);
+void SpriteAnimSetup(SpriteAnim* anim, Texture2D sheet, int frame_w, int frame_h, const int* idx, int count, float dur,
+                     bool loop);
 
-float room_cooldown_time(const Room* room);
-int room_repair_price(const Room* room);
-int room_buy_price(const Room* room);
-int room_weapon_price(const Room* room);
-int room_grate_price(const Room* room);
+float RoomCooldownTime(const Room* room);
+int RoomRepairPrice(const Room* room);
+int RoomBuyPrice(const Room* room);
+int RoomWeaponPrice(const Room* room);
+int RoomGratePrice(const Room* room);
 
-int difficulty_hooligan_speed(int lvl);
-float difficulty_hooligan_cooldown(int lvl);
-int difficulty_whore_speed(int lvl);
-float difficulty_whore_cooldown(int lvl);
-float difficulty_generator_timer(int lvl);
-void difficulty_spawn_random(int lvl, int raw, bool* road0, bool* road1);
+int DifficultyHooliganSpeed(int lvl);
+float DifficultyHooliganCooldown(int lvl);
+int DifficultyWhoreSpeed(int lvl);
+float DifficultyWhoreCooldown(int lvl);
+float DifficultyGeneratorTimer(int lvl);
+void DifficultySpawnRandom(int lvl, int raw, bool* road0, bool* road1);
 
-void game_init_house(Room rooms[BUILDING_ROWS][BUILDING_COLS]);
-void game_reset(Game* game);
+void GameInitHouse(Room rooms[BUILDING_ROWS][BUILDING_COLS]);
+void GameReset(Game* game);

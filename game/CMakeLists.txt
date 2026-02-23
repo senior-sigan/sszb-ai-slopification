@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.16)
 project(Game C)
 
 set(CMAKE_C_STANDARD 23)
-set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(THIRDPARTY_DIR ${CMAKE_SOURCE_DIR}/vendor)
 
@@ -28,7 +27,7 @@ endif()
 
 # Web Configurations
 if(EMSCRIPTEN)
-    message("WAVE: Building for web")
+    message("Building for web")
     set(PLATFORM Web)
     set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
     set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
@@ -46,11 +45,14 @@ if(EMSCRIPTEN)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 endif()
 
-target_compile_options(${PROJECT_NAME} PRIVATE
-    -fsanitize=address,undefined
-    -fno-sanitize-recover=all
-)
-target_link_libraries(${PROJECT_NAME} -fsanitize=address,undefined)
+# Sanitizers (native debug builds only)
+if(NOT EMSCRIPTEN)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        -fsanitize=address,undefined
+        -fno-sanitize-recover=all
+    )
+    target_link_libraries(${PROJECT_NAME} -fsanitize=address,undefined)
+endif()
 
 add_subdirectory(${THIRDPARTY_DIR}/raylib)
 

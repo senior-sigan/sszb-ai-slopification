@@ -17,6 +17,7 @@
 #include "assets.h"
 #include "day.h"
 #include "game_types.h"
+#include "input.h"
 #include "night.h"
 
 #ifndef PLATFORM_WEB
@@ -148,7 +149,7 @@ static void StateUpdate(float delta) {
     case STATE_WIN:
     case STATE_OVER:
       if (ManagedIsKeyPressed(KEY_ENTER)) {
-        game_reset(&game);
+        GameReset(&game);
         game.state = STATE_MENU;
       }
       break;
@@ -205,7 +206,7 @@ static void HandleAssertField(void) {
     script_runner.fail_count++;
     char msg[128];
     snprintf(msg, sizeof(msg), "unknown field '%s'", frame_cmd.field_check.field);
-    script_runner_report(&script_runner, "FAIL", msg);
+    ScriptRunnerReport(&script_runner, "FAIL", msg);
     return;
   }
   bool pass = false;
@@ -225,10 +226,10 @@ static void HandleAssertField(void) {
            frame_cmd.field_check.value, val);
   if (pass) {
     script_runner.pass_count++;
-    script_runner_report(&script_runner, "PASS", msg);
+    ScriptRunnerReport(&script_runner, "PASS", msg);
   } else {
     script_runner.fail_count++;
-    script_runner_report(&script_runner, "FAIL", msg);
+    ScriptRunnerReport(&script_runner, "FAIL", msg);
   }
 }
 
@@ -237,29 +238,29 @@ static void HandleCommand(void) {
     case CMD_SCREENSHOT:
       TakeScreenshot(frame_cmd.filename);
       if (script_runner.active) {
-        script_runner_report(&script_runner, "SHOT", frame_cmd.filename);
+        ScriptRunnerReport(&script_runner, "SHOT", frame_cmd.filename);
       } else {
-        command_server_respond(true, "OK");
+        CommandServerRespond(true, "OK");
       }
       break;
 
     case CMD_MOVE_MOUSE:
       SetMousePosition(frame_cmd.pos.x, frame_cmd.pos.y);
       if (!script_runner.active) {
-        command_server_respond(true, "OK");
+        CommandServerRespond(true, "OK");
       }
       break;
 
     case CMD_KEY_PRESS:
     case CMD_MOUSE_PRESS:
       if (!script_runner.active) {
-        command_server_respond(true, "OK");
+        CommandServerRespond(true, "OK");
       }
       break;
 
     case CMD_QUIT:
       if (!script_runner.active) {
-        command_server_respond(true, "OK");
+        CommandServerRespond(true, "OK");
       }
       running = false;
       break;
@@ -269,12 +270,12 @@ static void HandleCommand(void) {
       if ((int) game.state == frame_cmd.assert_state) {
         script_runner.pass_count++;
         snprintf(msg, sizeof(msg), "ASSERT_STATE %s", StateName(game.state));
-        script_runner_report(&script_runner, "PASS", msg);
+        ScriptRunnerReport(&script_runner, "PASS", msg);
       } else {
         script_runner.fail_count++;
         snprintf(msg, sizeof(msg), "ASSERT_STATE expected %s got %s", StateName((GameState) frame_cmd.assert_state),
                  StateName(game.state));
-        script_runner_report(&script_runner, "FAIL", msg);
+        ScriptRunnerReport(&script_runner, "FAIL", msg);
       }
     } break;
 
@@ -288,9 +289,9 @@ static void HandleCommand(void) {
       bool found;
       int val = GameGetFieldInt(&game, frame_cmd.field_check.field, &found);
       if (found) {
-        script_runner_respond(&script_runner, "%s=%d", frame_cmd.field_check.field, val);
+        ScriptRunnerRespond(&script_runner, "%s=%d", frame_cmd.field_check.field, val);
       } else {
-        script_runner_respond(&script_runner, "ERROR unknown field '%s'", frame_cmd.field_check.field);
+        ScriptRunnerRespond(&script_runner, "ERROR unknown field '%s'", frame_cmd.field_check.field);
       }
     } break;
 
@@ -307,7 +308,7 @@ static void HandleCommand(void) {
 void Update(void) {
 #ifndef PLATFORM_WEB
   // Poll TCP command
-  frame_cmd = command_server_poll();
+  frame_cmd = CommandServerPoll();
 
   // Handle TCP commands
   HandleCommand();
@@ -327,7 +328,7 @@ void Update(void) {
     if ((int) game.state == script_runner.wait_state_target) {
       char msg[128];
       snprintf(msg, sizeof(msg), "WAIT_STATE %s reached", StateName(game.state));
-      script_runner_report(&script_runner, "OK", msg);
+      ScriptRunnerReport(&script_runner, "OK", msg);
       script_runner.wait_state_target = -1;
     }
   }
@@ -376,11 +377,11 @@ int main(void) {
   srand((unsigned int) time(NULL));
   InitAudioDevice();
 #ifndef PLATFORM_WEB
-  command_server_init(CMD_PORT);
+  CommandServerInit(CMD_PORT);
 #endif
 
-  assets_load(&game.assets);
-  game_reset(&game);
+  AssetsLoad(&game.assets);
+  GameReset(&game);
 
 #ifdef PLATFORM_WEB
   emscripten_set_main_loop(Update, 0, 1);
@@ -392,9 +393,9 @@ int main(void) {
 #endif
 
 #ifndef PLATFORM_WEB
-  command_server_cleanup();
+  CommandServerCleanup();
 #endif
-  assets_unload(&game.assets);
+  AssetsUnload(&game.assets);
   CloseAudioDevice();
   CloseWindow();
   return 0;

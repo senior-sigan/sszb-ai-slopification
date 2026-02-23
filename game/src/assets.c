@@ -6,7 +6,7 @@
 
 #include "game_types.h"
 
-void assets_load(GameAssets* assets) {
+void AssetsLoad(GameAssets* assets) {
   // Screens
   assets->logo = LoadTexture("assets/textures/logo.png");
   assets->menu = LoadTexture("assets/textures/menu.gif");
@@ -68,23 +68,21 @@ void assets_load(GameAssets* assets) {
   assets->club_night_sheet = LoadTexture("assets/textures/club_night_1.gif");
   assets->frame_sheet = LoadTexture("assets/textures/frame.png");
   // Animations
-  sprite_anim_setup(&assets->anim_whore_walk, assets->whore_sheet, 88, 128, (int[]) {0, 1, 2, 3}, 4, ANIM_NORMAL, true);
-  sprite_anim_setup(&assets->anim_whore_attack, assets->whore_sheet, 88, 128, (int[]) {4, 5, 6, 7}, 4, ANIM_NORMAL,
-                    true);
-  sprite_anim_setup(&assets->anim_hooligan_walk, assets->gopstop_sheet, 120, 128, (int[]) {0, 1}, 2, ANIM_NORMAL, true);
-  sprite_anim_setup(&assets->anim_hooligan_attack, assets->gopstop_sheet, 120, 128, (int[]) {2, 3, 4, 5, 6}, 5,
-                    ANIM_NORMAL, false);
-  sprite_anim_setup(&assets->anim_hooligan_die, assets->gopstop_sheet, 120, 128, (int[]) {5, 6, 5, 6}, 4, ANIM_NORMAL,
-                    false);
-  sprite_anim_setup(&assets->anim_whore_die, assets->whore_sheet, 88, 128, (int[]) {1, 3}, 2, ANIM_NORMAL, false);
-  sprite_anim_setup(&assets->anim_pot_crash, assets->pot_crash_sheet, 80, 104, (int[]) {0, 1, 2, 3}, 4, ANIM_FAST,
-                    false);
-  sprite_anim_setup(&assets->anim_tv_crash, assets->tv_crash_sheet, 160, 96, (int[]) {0, 1, 2, 3, 4, 5}, 6, ANIM_FAST,
-                    false);
-  sprite_anim_setup(&assets->anim_royal_crash, assets->piano_crash_sheet, 200, 128, (int[]) {0, 1, 2, 3, 4, 5, 6, 7}, 8,
-                    ANIM_FAST, false);
-  sprite_anim_setup(&assets->anim_club_night, assets->club_night_sheet, 382, 484, (int[]) {0, 1}, 2, 0.6f, true);
-  sprite_anim_setup(&assets->anim_frame, assets->frame_sheet, 138, 138, (int[]) {0, 1}, 2, 0.2f, true);
+  SpriteAnimSetup(&assets->anim_whore_walk, assets->whore_sheet, 88, 128, (int[]) {0, 1, 2, 3}, 4, ANIM_NORMAL, true);
+  SpriteAnimSetup(&assets->anim_whore_attack, assets->whore_sheet, 88, 128, (int[]) {4, 5, 6, 7}, 4, ANIM_NORMAL, true);
+  SpriteAnimSetup(&assets->anim_hooligan_walk, assets->gopstop_sheet, 120, 128, (int[]) {0, 1}, 2, ANIM_NORMAL, true);
+  SpriteAnimSetup(&assets->anim_hooligan_attack, assets->gopstop_sheet, 120, 128, (int[]) {2, 3, 4, 5, 6}, 5,
+                  ANIM_NORMAL, false);
+  SpriteAnimSetup(&assets->anim_hooligan_die, assets->gopstop_sheet, 120, 128, (int[]) {5, 6, 5, 6}, 4, ANIM_NORMAL,
+                  false);
+  SpriteAnimSetup(&assets->anim_whore_die, assets->whore_sheet, 88, 128, (int[]) {1, 3}, 2, ANIM_NORMAL, false);
+  SpriteAnimSetup(&assets->anim_pot_crash, assets->pot_crash_sheet, 80, 104, (int[]) {0, 1, 2, 3}, 4, ANIM_FAST, false);
+  SpriteAnimSetup(&assets->anim_tv_crash, assets->tv_crash_sheet, 160, 96, (int[]) {0, 1, 2, 3, 4, 5}, 6, ANIM_FAST,
+                  false);
+  SpriteAnimSetup(&assets->anim_royal_crash, assets->piano_crash_sheet, 200, 128, (int[]) {0, 1, 2, 3, 4, 5, 6, 7}, 8,
+                  ANIM_FAST, false);
+  SpriteAnimSetup(&assets->anim_club_night, assets->club_night_sheet, 382, 484, (int[]) {0, 1}, 2, 0.6f, true);
+  SpriteAnimSetup(&assets->anim_frame, assets->frame_sheet, 138, 138, (int[]) {0, 1}, 2, 0.2f, true);
   // Font
   assets->main_font = LoadFontEx("assets/font/main.ttf", 44, NULL, 0);
   // Music
@@ -107,7 +105,7 @@ void assets_load(GameAssets* assets) {
   assets->snd_round_end = LoadSound("assets/sound/round_end.mp3");
 }
 
-void assets_unload(GameAssets* assets) {
+void AssetsUnload(GameAssets* assets) {
   // Unload all textures
   UnloadTexture(assets->logo);
   UnloadTexture(assets->menu);

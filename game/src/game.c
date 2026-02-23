@@ -5,7 +5,7 @@
 
 #include "game_types.h"
 
-Rectangle sprite_anim_frame(const SpriteAnim* anim, float time) {
+Rectangle SpriteAnimFrame(const SpriteAnim* anim, float time) {
   int total = anim->index_count;
   if (total == 0) {
     return (Rectangle) {0, 0, 0, 0};
@@ -31,13 +31,13 @@ Rectangle sprite_anim_frame(const SpriteAnim* anim, float time) {
                       .height = (float) anim->frame_height};
 }
 
-float sprite_anim_duration(const SpriteAnim* anim) {
+float SpriteAnimDuration(const SpriteAnim* anim) {
   return (float) anim->index_count * anim->frame_duration;
 }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-void sprite_anim_setup(SpriteAnim* anim, Texture2D sheet, int frame_w, int frame_h, const int* idx, int count,
-                       float dur, bool loop) {
+void SpriteAnimSetup(SpriteAnim* anim, Texture2D sheet, int frame_w, int frame_h, const int* idx, int count, float dur,
+                     bool loop) {
   anim->sheet = sheet;
   anim->frame_width = frame_w;
   anim->frame_height = frame_h;
@@ -49,7 +49,7 @@ void sprite_anim_setup(SpriteAnim* anim, Texture2D sheet, int frame_w, int frame
   anim->looping = loop;
 }
 
-float room_cooldown_time(const Room* room) {
+float RoomCooldownTime(const Room* room) {
   switch (room->type) {
     case ROOM_POT:
       return POT_COOLDOWN;
@@ -61,17 +61,17 @@ float room_cooldown_time(const Room* room) {
   return 1.0f;
 }
 
-int room_repair_price(const Room* room) {
+int RoomRepairPrice(const Room* room) {
   return room->base_price * REPAIR_MUL;
 }
-int room_buy_price(const Room* room) {
+int RoomBuyPrice(const Room* room) {
   return room->base_price * BUY_MUL;
 }
-int room_grate_price(const Room* room) {
+int RoomGratePrice(const Room* room) {
   return room->base_price * GRATE_MUL;
 }
 
-int room_weapon_price(const Room* room) {
+int RoomWeaponPrice(const Room* room) {
   switch (room->type) {
     case ROOM_POT:
       return room->base_price * POT_WEAPON_MUL;
@@ -83,11 +83,11 @@ int room_weapon_price(const Room* room) {
   return room->base_price * POT_WEAPON_MUL;
 }
 
-int difficulty_hooligan_speed(int lvl) {
+int DifficultyHooliganSpeed(int lvl) {
   return 65 + (lvl * 10) + (rand() % ((lvl * 10) > 0 ? (lvl * 10) : 1));
 }
 
-float difficulty_hooligan_cooldown(int lvl) {
+float DifficultyHooliganCooldown(int lvl) {
   switch (lvl) {
     case 1:
       return 10.0f;
@@ -100,7 +100,7 @@ float difficulty_hooligan_cooldown(int lvl) {
   }
 }
 
-int difficulty_whore_speed(int lvl) {
+int DifficultyWhoreSpeed(int lvl) {
   switch (lvl) {
     case 1:
     case 2:
@@ -112,7 +112,7 @@ int difficulty_whore_speed(int lvl) {
   }
 }
 
-float difficulty_whore_cooldown(int lvl) {
+float DifficultyWhoreCooldown(int lvl) {
   switch (lvl) {
     case 1:  // NOLINT(bugprone-branch-clone)
     case 2:
@@ -122,7 +122,7 @@ float difficulty_whore_cooldown(int lvl) {
   }
 }
 
-float difficulty_generator_timer(int lvl) {
+float DifficultyGeneratorTimer(int lvl) {
   switch (lvl) {
     case 1:
       return 2.2f;
@@ -136,8 +136,8 @@ float difficulty_generator_timer(int lvl) {
   }
 }
 
-void difficulty_spawn_random(int lvl, int raw,  // NOLINT(bugprone-easily-swappable-parameters)
-                             bool* road0, bool* road1) {
+void DifficultySpawnRandom(int lvl, int raw,  // NOLINT(bugprone-easily-swappable-parameters)
+                           bool* road0, bool* road1) {
   // Match Scala's rand.nextInt() % 10 behavior:
   // Scala's nextInt() returns signed ints, so % 10 gives [-9, 9].
   // Negative seeds fall through all range checks to (true, true).
@@ -218,7 +218,7 @@ void difficulty_spawn_random(int lvl, int raw,  // NOLINT(bugprone-easily-swappa
 // Row 0: (TV,4) (Pot,4) (Pot,3) (Pot,3) (TV,3) (Royal,4)
 // Row 1: (Pot,4) (Pot,3) (TV,3) (TV,2) (Pot,2) (Royal,3)
 // Row 2: (Royal,3) (Royal,3) (Pot,1) (Royal,2) (TV,2) (Pot,1)
-void game_init_house(Room rooms[BUILDING_ROWS][BUILDING_COLS]) {
+void GameInitHouse(Room rooms[BUILDING_ROWS][BUILDING_COLS]) {
   typedef struct {
     RoomType t;
     int p;
@@ -250,7 +250,7 @@ void game_init_house(Room rooms[BUILDING_ROWS][BUILDING_COLS]) {
   rooms[2][2].armed = true;
 }
 
-void game_reset(Game* game) {
+void GameReset(Game* game) {
   game->state = STATE_LOGO;
   game->state_timer = 0;
   game->level = 1;
@@ -267,7 +267,7 @@ void game_reset(Game* game) {
   game->selfie_time = 0;
   game->club_anim_time = 0;
   game->frame_anim_time = 0;
-  game_init_house(game->rooms);
+  GameInitHouse(game->rooms);
   memset(game->creatures, 0, sizeof(game->creatures));
   memset(game->weights, 0, sizeof(game->weights));
   memset(game->bullets, 0, sizeof(game->bullets));

@@ -1,5 +1,5 @@
 /*
- * command_server.h — single-header TCP command server for raylib games
+ * command_server.h -- single-header TCP command server for raylib games
  *
  * Usage:
  *   In exactly ONE .c file, before including this header, define:
@@ -75,17 +75,17 @@ typedef struct {
   int client_fd;
 } ScriptRunner;
 
-int command_server_init(int port);
-Command command_server_poll(void);
-void command_server_respond(bool success, const char* message);
-void command_server_cleanup(void);
+int CommandServerInit(int port);
+Command CommandServerPoll(void);
+void CommandServerRespond(bool success, const char* message);
+void CommandServerCleanup(void);
 
 // Script runner API
-bool script_runner_load(ScriptRunner* sr, const char* filepath, int client_fd);
-Command script_runner_tick(ScriptRunner* sr);
-void script_runner_finish(ScriptRunner* sr);
-void script_runner_report(ScriptRunner* sr, const char* prefix, const char* msg);
-void script_runner_respond(ScriptRunner* sr, const char* fmt, ...);
+bool ScriptRunnerLoad(ScriptRunner* sr, const char* filepath, int client_fd);
+Command ScriptRunnerTick(ScriptRunner* sr);
+void ScriptRunnerFinish(ScriptRunner* sr);
+void ScriptRunnerReport(ScriptRunner* sr, const char* prefix, const char* msg);
+void ScriptRunnerRespond(ScriptRunner* sr, const char* fmt, ...);
 
 // Global script runner instance
 extern ScriptRunner script_runner;
@@ -113,24 +113,44 @@ static int command_server__recv_len = 0;
 
 ScriptRunner script_runner = {0};
 
-static int script__parse_state_name(const char* name) {
-  if (strcmp(name, "LOGO") == 0) return 0;
-  if (strcmp(name, "MENU") == 0) return 1;
-  if (strcmp(name, "TUTOR1") == 0) return 2;
-  if (strcmp(name, "TUTOR2") == 0) return 3;
-  if (strcmp(name, "TUTOR3") == 0) return 4;
-  if (strcmp(name, "NIGHT") == 0) return 5;
-  if (strcmp(name, "DAY") == 0) return 6;
-  if (strcmp(name, "WIN") == 0) return 7;
-  if (strcmp(name, "OVER") == 0) return 8;
+static int ScriptParseStateName(const char* name) {
+  if (strcmp(name, "LOGO") == 0) {
+    return 0;
+  }
+  if (strcmp(name, "MENU") == 0) {
+    return 1;
+  }
+  if (strcmp(name, "TUTOR1") == 0) {
+    return 2;
+  }
+  if (strcmp(name, "TUTOR2") == 0) {
+    return 3;
+  }
+  if (strcmp(name, "TUTOR3") == 0) {
+    return 4;
+  }
+  if (strcmp(name, "NIGHT") == 0) {
+    return 5;
+  }
+  if (strcmp(name, "DAY") == 0) {
+    return 6;
+  }
+  if (strcmp(name, "WIN") == 0) {
+    return 7;
+  }
+  if (strcmp(name, "OVER") == 0) {
+    return 8;
+  }
   return -1;
 }
 
-static Command script__parse_line(const char* line) {
+static Command ScriptParseLine(const char* line) {
   Command cmd = {.type = CMD_NONE};
 
   // Skip empty lines and comments
-  if (line[0] == '\0' || line[0] == '#') return cmd;
+  if (line[0] == '\0' || line[0] == '#') {
+    return cmd;
+  }
 
   if (strncmp(line, "KEY ", 4) == 0) {
     cmd.type = CMD_KEY_PRESS;
@@ -153,14 +173,14 @@ static Command script__parse_line(const char* line) {
     char state_name[64];
     int timeout = 600;
     sscanf(line + 11, "%63s %d", state_name, &timeout);
-    cmd.wait_state.target_state = script__parse_state_name(state_name);
+    cmd.wait_state.target_state = ScriptParseStateName(state_name);
     cmd.wait_state.timeout = timeout;
   } else if (strncmp(line, "WAIT ", 5) == 0) {
     cmd.type = CMD_WAIT;
     cmd.wait_frames = atoi(line + 5);
   } else if (strncmp(line, "ASSERT_STATE ", 13) == 0) {
     cmd.type = CMD_ASSERT_STATE;
-    cmd.assert_state = script__parse_state_name(line + 13);
+    cmd.assert_state = ScriptParseStateName(line + 13);
   } else if (strncmp(line, "ASSERT_GE ", 10) == 0) {
     cmd.type = CMD_ASSERT_GE;
     sscanf(line + 10, "%63s %d", cmd.field_check.field, &cmd.field_check.value);
@@ -183,7 +203,7 @@ static Command script__parse_line(const char* line) {
   return cmd;
 }
 
-bool script_runner_load(ScriptRunner* sr, const char* filepath, int client_fd) {
+bool ScriptRunnerLoad(ScriptRunner* sr, const char* filepath, int client_fd) {
   FILE* f = fopen(filepath, "r");
   if (!f) {
     printf("script_runner: failed to open %s\n", filepath);
@@ -198,8 +218,10 @@ bool script_runner_load(ScriptRunner* sr, const char* filepath, int client_fd) {
   while (fgets(buf, sizeof(buf), f) && sr->line_count < SCRIPT_MAX_LINES) {
     // Strip trailing newline/whitespace
     int len = (int) strlen(buf);
-    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r' || buf[len - 1] == ' ')) buf[--len] = '\0';
-    memcpy(sr->lines[sr->line_count], buf, (size_t) (len + 1));
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r' || buf[len - 1] == ' ')) {
+      buf[--len] = '\0';
+    }
+    memcpy(sr->lines[sr->line_count], buf, (size_t) len + 1);
     sr->line_count++;
   }
   fclose(f);
@@ -209,20 +231,20 @@ bool script_runner_load(ScriptRunner* sr, const char* filepath, int client_fd) {
   return true;
 }
 
-void script_runner_report(ScriptRunner* sr, const char* prefix, const char* msg) {
+void ScriptRunnerReport(ScriptRunner* sr, const char* prefix, const char* msg) {
   if (sr->report_count < SCRIPT_REPORT_MAX) {
     snprintf(sr->report[sr->report_count], SCRIPT_MAX_LINE_LEN, "[%s] line %d: %s", prefix, sr->current_line, msg);
     sr->report_count++;
   }
 }
 
-static void script__send(ScriptRunner* sr, const char* msg) {
+static void ScriptSend(ScriptRunner* sr, const char* msg) {
   if (sr->client_fd >= 0) {
     send(sr->client_fd, msg, strlen(msg), 0);
   }
 }
 
-void script_runner_respond(ScriptRunner* sr, const char* fmt, ...) {
+void ScriptRunnerRespond(ScriptRunner* sr, const char* fmt, ...) {
   if (sr->client_fd < 0) {
     return;
   }
@@ -235,17 +257,17 @@ void script_runner_respond(ScriptRunner* sr, const char* fmt, ...) {
   send(sr->client_fd, buf, (size_t) len + 1, 0);
 }
 
-void script_runner_finish(ScriptRunner* sr) {
+void ScriptRunnerFinish(ScriptRunner* sr) {
   char buf[1024];
-  script__send(sr, "=== SCRIPT REPORT ===\n");
+  ScriptSend(sr, "=== SCRIPT REPORT ===\n");
   snprintf(buf, sizeof(buf), "PASS: %d\nFAIL: %d\nTOTAL: %d\n---\n", sr->pass_count, sr->fail_count,
            sr->pass_count + sr->fail_count);
-  script__send(sr, buf);
+  ScriptSend(sr, buf);
   for (int i = 0; i < sr->report_count; i++) {
-    script__send(sr, sr->report[i]);
-    script__send(sr, "\n");
+    ScriptSend(sr, sr->report[i]);
+    ScriptSend(sr, "\n");
   }
-  script__send(sr, "=== END REPORT ===\n");
+  ScriptSend(sr, "=== END REPORT ===\n");
 
   if (sr->client_fd >= 0) {
     close(sr->client_fd);
@@ -255,10 +277,12 @@ void script_runner_finish(ScriptRunner* sr) {
   printf("script_runner: finished (pass=%d fail=%d)\n", sr->pass_count, sr->fail_count);
 }
 
-Command script_runner_tick(ScriptRunner* sr) {
+Command ScriptRunnerTick(ScriptRunner* sr) {
   Command cmd = {.type = CMD_NONE};
 
-  if (!sr->active) return cmd;
+  if (!sr->active) {
+    return cmd;
+  }
 
   // Waiting for frames
   if (sr->wait_remaining > 0) {
@@ -273,7 +297,7 @@ Command script_runner_tick(ScriptRunner* sr) {
       sr->fail_count++;
       char msg[128];
       snprintf(msg, sizeof(msg), "WAIT_STATE timeout (target=%d)", sr->wait_state_target);
-      script_runner_report(sr, "FAIL", msg);
+      ScriptRunnerReport(sr, "FAIL", msg);
       sr->wait_state_target = -1;
     }
     return cmd;
@@ -281,12 +305,12 @@ Command script_runner_tick(ScriptRunner* sr) {
 
   // All lines executed
   if (sr->current_line >= sr->line_count) {
-    script_runner_finish(sr);
+    ScriptRunnerFinish(sr);
     return cmd;
   }
 
   // Parse next line
-  cmd = script__parse_line(sr->lines[sr->current_line++]);
+  cmd = ScriptParseLine(sr->lines[sr->current_line++]);
 
   // Handle script-internal commands that don't go to main.c
   if (cmd.type == CMD_WAIT) {
@@ -298,23 +322,23 @@ Command script_runner_tick(ScriptRunner* sr) {
     cmd.type = CMD_NONE;
   } else if (cmd.type == CMD_LOG) {
     printf("script: %s\n", cmd.log_text);
-    script_runner_report(sr, "LOG", cmd.log_text);
+    ScriptRunnerReport(sr, "LOG", cmd.log_text);
     cmd.type = CMD_NONE;
   } else if (cmd.type == CMD_QUIT) {
     // Finish report before quitting
-    script_runner_finish(sr);
+    ScriptRunnerFinish(sr);
     return cmd;
   } else if (cmd.type == CMD_NONE) {
-    // Empty line or comment — advance immediately on same frame
+    // Empty line or comment -- advance immediately on same frame
     if (sr->current_line < sr->line_count) {
-      return script_runner_tick(sr);
+      return ScriptRunnerTick(sr);
     }
   }
 
   return cmd;
 }
 
-int command_server_init(int port) {
+int CommandServerInit(int port) {
   command_server__fd = socket(AF_INET, SOCK_STREAM, 0);
   if (command_server__fd < 0) {
     perror("command_server: socket");
@@ -351,7 +375,7 @@ int command_server_init(int port) {
   return 0;
 }
 
-static Command command_server__parse_line(const char* line) {
+static Command CommandServerParseLine(const char* line) {
   Command cmd = {.type = CMD_NONE};
 
   if (strncmp(line, "SCREENSHOT ", 11) == 0) {
@@ -384,30 +408,8 @@ static Command command_server__parse_line(const char* line) {
   return cmd;
 }
 
-Command command_server_poll(void) {
+static Command CommandServerReadClient(void) {
   Command cmd = {.type = CMD_NONE};
-
-  if (command_server__fd < 0) {
-    return cmd;
-  }
-
-  // If script is active, execute from script runner
-  if (script_runner.active) {
-    return script_runner_tick(&script_runner);
-  }
-
-  if (command_server__client_fd < 0) {
-    command_server__client_fd = accept(command_server__fd, NULL, NULL);
-    if (command_server__client_fd < 0) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        perror("command_server: accept");
-      }
-      return cmd;
-    }
-    int flags = fcntl(command_server__client_fd, F_GETFL, 0);
-    fcntl(command_server__client_fd, F_SETFL, flags | O_NONBLOCK);
-    command_server__recv_len = 0;
-  }
 
   ssize_t n = recv(command_server__client_fd, command_server__recv_buf + command_server__recv_len,
                    COMMAND_SERVER__RECV_BUF_SIZE - command_server__recv_len - 1, 0);
@@ -418,7 +420,7 @@ Command command_server_poll(void) {
     char* newline = strchr(command_server__recv_buf, '\n');
     if (newline != NULL) {
       *newline = '\0';
-      cmd = command_server__parse_line(command_server__recv_buf);
+      cmd = CommandServerParseLine(command_server__recv_buf);
 
       int remaining = command_server__recv_len - (int) (newline - command_server__recv_buf) - 1;
       if (remaining > 0) {
@@ -428,12 +430,12 @@ Command command_server_poll(void) {
 
       // Handle SCRIPT command: load and start script, keep connection open
       if (cmd.type == CMD_SCRIPT) {
-        if (script_runner_load(&script_runner, cmd.filename, command_server__client_fd)) {
+        if (ScriptRunnerLoad(&script_runner, cmd.filename, command_server__client_fd)) {
           // Transfer ownership of client_fd to script_runner
           command_server__client_fd = -1;
           command_server__recv_len = 0;
         } else {
-          command_server_respond(false, "Failed to load script");
+          CommandServerRespond(false, "Failed to load script");
         }
         cmd.type = CMD_NONE;
       }
@@ -452,7 +454,35 @@ Command command_server_poll(void) {
   return cmd;
 }
 
-void command_server_respond(bool success, const char* message) {
+Command CommandServerPoll(void) {
+  Command cmd = {.type = CMD_NONE};
+
+  if (command_server__fd < 0) {
+    return cmd;
+  }
+
+  // If script is active, execute from script runner
+  if (script_runner.active) {
+    return ScriptRunnerTick(&script_runner);
+  }
+
+  if (command_server__client_fd < 0) {
+    command_server__client_fd = accept(command_server__fd, NULL, NULL);
+    if (command_server__client_fd < 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        perror("command_server: accept");
+      }
+      return cmd;
+    }
+    int flags = fcntl(command_server__client_fd, F_GETFL, 0);
+    fcntl(command_server__client_fd, F_SETFL, flags | O_NONBLOCK);
+    command_server__recv_len = 0;
+  }
+
+  return CommandServerReadClient();
+}
+
+void CommandServerRespond(bool success, const char* message) {
   if (command_server__client_fd < 0) {
     return;
   }
@@ -471,7 +501,7 @@ void command_server_respond(bool success, const char* message) {
   command_server__recv_len = 0;
 }
 
-void command_server_cleanup(void) {
+void CommandServerCleanup(void) {
   if (command_server__client_fd >= 0) {
     close(command_server__client_fd);
     command_server__client_fd = -1;
